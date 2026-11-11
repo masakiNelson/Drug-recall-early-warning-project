@@ -1,8 +1,8 @@
-# PharmaSignal: Drug-Quality Recall Intelligence
+# PharmaSignal AI: Drug-Quality Recall Intelligence
 
 **Team:** Cindy Murogo, Daniel Kimasar, Mananda Kirungu Salim, Nelson Masaki, Varlerly Maina
 
-MSc capstone prototype that turns openFDA drug-recall records into evidence for pharmaceutical procurement teams. Everything is in `Drug_Recall_Intelligence_Final.ipynb`.
+Capstone group project: an AI-powered prototype that turns openFDA drug-recall records into evidence for pharmaceutical procurement teams. Everything is in `Drug_Recall_Intelligence_Final.ipynb`.
 
 ## Files
 
@@ -83,7 +83,7 @@ An interactive web app built on the notebook's results, with five pages:
 | **Overview** | Who the tool is for, headline numbers, recalls per year by class, failure types, dosage forms, top firms and record search |
 | **Recall signals** | Surge signals by failure type, dosage form and firm, a sensitivity what-if, a trend chart and the back-test |
 | **Tender screening** | Type or upload a bidder list, screen it against FDA records, download a summary and evidence briefs; watch list of firms |
-| **Ask PharmaSignal** | Plain-English questions answered from the data only, with sources and the fact-checker |
+| **AI assistant** | Plain-English questions answered from the data only, with sources and the fact-checker |
 | **About and methods** | How it works, evaluation results, limitations, use of AI, the team and a feedback form |
 
 1. **Run the notebook once** (Restart & Run All). It creates the `outputs/` folder the app reads; the app does not retrain anything.
