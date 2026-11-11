@@ -102,9 +102,9 @@ The app code is in `app.py` (pages) and `pharmasignal_core.py` (data loading, te
 
 ## Use of AI
 
-We used Claude (Anthropic) in this project and declare it as follows:
+We used Claude in this project and declare it as follows:
 
 - **Labelling:** the 1,000 recall reasons were labelled by LLM-assisted annotation (Claude) following a written 10-category codebook. The `annotator` column records this. Team members checked label quality with a blind human review of 150 records (`blind_check_150.csv`, agreement reported as Cohen's kappa); human corrections in `human_verified_label` override the AI label.
-- **Code and documentation:** Claude assisted in writing and debugging the notebook, the Streamlit app and the documentation.
+
 - **The assistant inside the app** uses Claude to write answers from SQL facts and retrieved recall records only; a code checker verifies every number and recall ID.
 - **Our checks and decisions:** the team chose the problem and the evidence-not-verdicts rule, reviewed the results, and validated the work with the blind label check, a 20-question assistant test set and backtests on six known recall crises.
