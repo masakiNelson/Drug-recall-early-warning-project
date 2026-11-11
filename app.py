@@ -15,7 +15,7 @@ import streamlit as st
 import pharmasignal_core as core
 import ui
 
-st.set_page_config(page_title="PharmaSignal", page_icon="💊", layout="wide", initial_sidebar_state="auto")
+st.set_page_config(page_title="PharmaSignal", page_icon=":material/monitor_heart:", layout="wide", initial_sidebar_state="auto")
 ui.set_mode("light")   # one consistent look: white background, navy sidebar
 ui.apply_style()
 st.logo(str(core.ROOT / "assets" / ("logo.svg" if ui.MODE == "dark" else "logo_light.svg")), size="large",
@@ -126,9 +126,10 @@ def home():
                  "Proceed with a bidder, or ask for more documents before award")
 
     ui.section("Where would you like to start?")
-    links = [(findings_pg, "Key findings", ":material/insights:"), (failures_pg, "What goes wrong", ":material/science:"),
-             (firms_pg, "Firms and records", ":material/factory:"), (latest_pg, "Latest signals", ":material/notifications_active:"),
-             (tender_pg, "Screen tender bidders", ":material/fact_check:"), (ask_pg, "Ask the AI assistant", ":material/smart_toy:")]
+    st.markdown('<p class="ps-infolabel">Click any card to open that page.</p>', unsafe_allow_html=True)
+    links = [(findings_pg, "At a Glance", ":material/insights:"), (failures_pg, "Failure Patterns", ":material/science:"),
+             (firms_pg, "Firm Directory", ":material/factory:"), (latest_pg, "Signal Radar", ":material/radar:"),
+             (tender_pg, "Tender Screener", ":material/fact_check:"), (ask_pg, "Ask PharmaSignal AI", ":material/smart_toy:")]
     for row in (links[:3], links[3:]):
         cols = st.columns(3)
         for c, (page, label, icon) in zip(cols, row):
@@ -164,7 +165,7 @@ def record_filter(key):
 
 def key_findings():
     n_ev = EVENTS.event_id.nunique()
-    ui.page_header("Key findings", icon="💡", text=
+    ui.page_header("At a Glance", icon="insights", text=
                    f"The four things to remember from {n_ev:,} FDA drug-quality recall events, "
                    f"{d.provenance['report_date_range'][0][:4]} to {d.provenance['report_date_range'][1][:4]}.")
     share_i = (EVENTS.classification == "Class I").mean()
@@ -195,7 +196,7 @@ def key_findings():
 
 
 def what_goes_wrong():
-    ui.page_header("What goes wrong", icon="🧪", text=
+    ui.page_header("Failure Patterns", icon="science", text=
                    "Which quality failures cause recalls, and which kinds of products are affected most. "
                    "Every recall reason was sorted into a failure type by the machine-learning classifier.")
     f, ev, _ = record_filter("wgw")
@@ -208,52 +209,66 @@ def what_goes_wrong():
         g = ev.product_group.value_counts().rename_axis("dosage form").reset_index(name="events")
         st.subheader(f"{g['dosage form'].iloc[0]} and {g['dosage form'].iloc[1].lower()} products lead")
         ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.BLUE, height=360)
-    ui.note("<b>Reading the charts:</b> the two largest groups are coloured; the rest are grey. Counts are recall events "
-            "(one recall decision), not individual products.", "info")
+    ui.tip("<b>Reading the charts:</b> the two largest groups are coloured; the rest are grey. Counts are recall events "
+           "(one recall decision), not individual products.")
     ui.footer(d.source)
 
 
 def firms_and_records():
-    ui.page_header("Firms and records", icon="🏭", text=
-                   "Which firms recall most often, and a search across every recall record.")
+    ui.page_header("Firm Directory", icon="factory", text=
+                   "Which firms recall most often, what usually goes wrong for them, and a search across every recall record.")
     f, ev, _ = record_filter("firms")
-    st.subheader("Firms with the most recall events")
-    top = (ev.groupby("firm_std").agg(events=("event_id", "nunique"),
-                                      class_I=("classification", lambda s: int((s == "Class I").sum())))
-           .sort_values("events", ascending=False).head(10).reset_index())
-    top["firm_std"] = top.firm_std.map(firm_title)
-    st.dataframe(top, hide_index=True, width="stretch", column_config={
-        "firm_std": st.column_config.TextColumn("Recalling firm", width="large"),
-        "events": st.column_config.ProgressColumn("Recall events", format="%d", min_value=0, max_value=int(top.events.max())),
-        "class_I": st.column_config.NumberColumn("Of which Class I", width="small")})
-    ui.note("The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
-            "so treat a name as the start of a question, not a conclusion.", "limit")
+    st.subheader("The ten firms with the most recall events")
+    g = ev.groupby("firm_std")
+    top = (g.agg(events=("event_id", "nunique"), class_I=("classification", lambda s: int((s == "Class I").sum())),
+                 latest=("report_date_dt", "max"))
+           .sort_values("events", ascending=False).head(10))
+    main_fail = ev[ev.firm_std.isin(top.index)].groupby("firm_std").analysis_category.agg(lambda s: s.value_counts().index[0])
+    mx = int(top.events.max())
+    rows = []
+    for k, (firm, r) in enumerate(top.iterrows(), 1):
+        share = r.class_I / r.events if r.events else 0
+        rows.append([f'<span class="rank">{k}</span>',
+                     f'<b>{ui.esc(firm_title(firm))}</b><span class="sub">Most common failure: {ui.esc(nice_cat(main_fail.get(firm, "")).lower())}</span>',
+                     ui.bar_cell(int(r.events), mx),
+                     ui.chip(f"{int(r.class_I)} Class I", "coral" if r.class_I else "grey"),
+                     f"{share:.0%}", f"{r.latest:%b %Y}" if r.latest == r.latest else "-"])
+    ui.table(["#", "Recalling firm", "Recall events", "Most serious", "Class I share", "Latest recall"], rows, numeric=(4,))
+    ui.tip("The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
+           "so treat a name as the start of a question, not a conclusion.")
 
-    ui.section("Search recall records", "Look up any product, firm or recall reason.")
-    q = st.text_input("Product, firm or reason contains", placeholder="e.g. metformin, benzene, Teva")
+    ui.section("Search recall records", "Type a product, firm or reason to see every matching recall.")
+    q = st.text_input("Search", placeholder="e.g. metformin, benzene, Teva", label_visibility="collapsed")
     if q:
         hit = f[f.product_description.str.contains(q, case=False, na=False, regex=False)
                 | f.recalling_firm.str.contains(q, case=False, na=False, regex=False)
                 | f.reason_clean.str.contains(q, case=False, na=False, regex=False)]
         st.caption(f"{len(hit):,} records match; showing the newest 500.")
         out = hit.sort_values("report_date", ascending=False)[
-            ["recall_number", "report_date", "classification", "recalling_firm", "analysis_category",
-             "product_group", "reason_clean", "product_description"]].head(500)
+            ["report_date", "recall_number", "classification", "recalling_firm", "analysis_category", "product_group",
+             "reason_clean", "product_description"]].head(500).copy()
         out["analysis_category"] = out.analysis_category.map(nice_cat)
-        st.dataframe(out, hide_index=True, width="stretch")
-        st.download_button("Download these records (CSV)", out.to_csv(index=False), "recall_search.csv", "text/csv")
+        st.dataframe(out, hide_index=True, width="stretch", column_config={
+            "report_date": st.column_config.TextColumn("Published", width="small"),
+            "recall_number": st.column_config.TextColumn("Recall no.", width="small"),
+            "classification": st.column_config.TextColumn("Class", width="small"),
+            "recalling_firm": st.column_config.TextColumn("Firm", width="medium"),
+            "analysis_category": st.column_config.TextColumn("Failure type", width="medium"),
+            "product_group": st.column_config.TextColumn("Dosage form", width="small"),
+            "reason_clean": st.column_config.TextColumn("Reason", width="large"),
+            "product_description": st.column_config.TextColumn("Product", width="large")})
+        st.download_button("Download these records (CSV)", out.to_csv(index=False), "recall_search.csv", "text/csv",
+                           icon=":material/download:")
     ui.footer(d.source)
 
 
 # ============================================================ Recall signals
 def latest_signals():
-    ui.page_header("Latest signals", icon="📡", text=
+    ui.page_header("Signal Radar", icon="radar", text=
                    "A signal means a month had clearly more recall events than usual for a failure type, dosage form or firm. "
                    "It is a prompt to look closer, not a confirmed quality failure.")
     al = d.alerts.copy()
     al["strength"] = al.n_methods.map(ui.strength_label)
-
-    # ---- sidebar controls
     with st.sidebar:
         st.markdown('<div class="ps-sidehead">Signal filters</div>', unsafe_allow_html=True)
         window = st.select_slider("Reporting period", ["3 months", "6 months", "12 months", "24 months", "All history"],
@@ -274,56 +289,56 @@ def latest_signals():
         what = {"category": "failure type", "product_group": "dosage form", "firm": "firm"}[t.series_type]
         ui.note(f"<b>Most recent {t.strength.lower()} signal:</b> {ui.esc(label)} ({what}) in {month_label(t.month)}, with "
                 f"{int(t.n_events)} recall events against a usual {t.hist_mean:.1f} a month.", "warn")
-
-    # ---- summary metrics
-    events_in_signals = int(al.n_events.sum())
     ui.kpis([(f"{len(al)}", "signals detected in this view", "blue"),
              (f"{int((al.strength == 'Strong').sum())}", "strong signals: all three methods agree", "coral"),
              (f"{int((al.strength == 'Moderate').sum())}", "moderate signals: two methods agree", "amber"),
-             (f"{events_in_signals:,}", "recall events in the flagged months", "")])
+             (f"{int(al.n_events.sum()):,}", "recall events in the flagged months", "")])
     if al.empty:
-        ui.note("No signals match these filters. Widen the reporting period or include more strength levels in the sidebar.",
-                "info")
+        ui.tip("No signals match these filters. Widen the reporting period or include more strength levels in the sidebar.")
         ui.footer(d.source)
         return
 
     al["name"] = [nice_cat(n) if t == "category" else firm_title(n) for t, n in zip(al.series_type, al.series_name)]
     al["kind"] = al.series_type.map({"category": "Failure type", "product_group": "Dosage form", "firm": "Firm"})
-    al["times"] = al.n_events / np.maximum(al.hist_mean, 0.5)
     al["flagged_by"] = al.why_flagged.str.extract(r"flagged by ([^;]+)")[0].str.replace("zscore", "z-score").fillna("the detectors")
-    al["class_i"] = al.why_flagged.str.extract(r"(\d+)% of records Class I")[0].astype(float)
     al["month_label"] = al.month.map(month_label)
 
-    # ---- signal strength map (Plotly)
-    ui.section("Signal strength map",
-               "Each dot is one flagged month. Further right means more events than usual; higher means a more unusual jump. "
-               "Bigger dots had more recall events.")
+    # ---- dumbbell chart: usual level vs this month
+    ui.section("How big was each jump?",
+               "Each row is one signal. The grey dot is the usual monthly level; the coloured dot is what happened that month. "
+               "The longer the line, the bigger the jump.")
+    show = al.head(12).iloc[::-1]
+    labels = [f"{n}  ({m})" for n, m in zip(show.name, show.month_label)]
+    colours = ui.strength_colours()
     fig = go.Figure()
-    for level, colour in ui.strength_colours().items():
-        sub = al[al.strength == level]
-        if sub.empty:
-            continue
-        fig.add_trace(go.Scatter(
-            x=sub.times, y=sub.zscore, mode="markers", name=level,
-            marker=dict(size=np.clip(sub.n_events * 3, 10, 46), color=colour, opacity=0.82,
-                        line=dict(width=1, color=ui.P["CARD_SOLID"])),
-            customdata=np.stack([sub.name, sub.kind, sub.month_label, sub.n_events, sub.hist_mean.round(1)], axis=1),
-            hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}, %{customdata[2]}<br>"
-                          "%{customdata[3]} events vs usual %{customdata[4]}<br>%{x:.1f}× usual, z = %{y:.1f}<extra></extra>"))
-    fig.update_xaxes(title_text="Times the usual monthly level", type="log")
-    fig.update_yaxes(title_text="Z-score (how unusual the jump is)")
-    ui.plotly_chart(fig, 400)
+    for y, r in zip(labels, show.itertuples()):
+        fig.add_trace(go.Scatter(x=[r.hist_mean, r.n_events], y=[y, y], mode="lines", showlegend=False, hoverinfo="skip",
+                                 line=dict(color=ui.MIST, width=4)))
+    fig.add_trace(go.Scatter(x=show.hist_mean, y=labels, mode="markers", name="Usual level",
+                             marker=dict(size=13, color=ui.P["CARD_SOLID"], line=dict(color=ui.MUTED, width=2.5)),
+                             hovertemplate="%{y}<br>Usual: %{x:.1f} a month<extra></extra>"))
+    for level, colour in colours.items():
+        m = show.strength == level
+        if m.any():
+            fig.add_trace(go.Scatter(x=show.n_events[m], y=[l for l, k in zip(labels, m) if k], mode="markers",
+                                     name=f"{level} signal", marker=dict(size=16, color=colour, line=dict(color="#FFFFFF", width=1.5)),
+                                     hovertemplate="%{y}<br>This month: %{x} events<extra></extra>"))
+    fig.update_xaxes(title_text="Recall events in the month", rangemode="tozero")
+    fig.update_yaxes(title_text="", tickfont=dict(size=12.5, color=ui.P["TEXT"]))
+    ui.plotly_chart(fig, max(320, 34 * len(show) + 110))
 
-    # ---- table with status badges
-    ui.section("Signals in this view", "Newest first. The badge shows how many of the three detection methods agreed.")
-    ui.signal_table([{"month": r.month_label, "kind": r.kind, "name": r.name, "events": int(r.n_events),
-                      "usual": float(r.hist_mean), "times": f"{r.times:.1f}×", "flagged_by": r.flagged_by,
-                      "class_i": "" if r.class_i != r.class_i else f"{r.class_i:.0f}%", "strength": r.strength}
-                     for r in al.head(15).itertuples()])
-    if len(al) > 15:
-        st.caption(f"Showing the 15 most recent of {len(al)} signals.")
-    with st.expander(f"Sort, search or download all {len(al)} signals"):
+    # ---- compact table
+    ui.section("Signals at a glance", "Newest first. Open the full list below to sort, search or download.")
+    rows = [[f"<b>{ui.esc(r.month_label)}</b>",
+             f'<b>{ui.esc(r.name)}</b><span class="sub">{ui.esc(r.kind)}, flagged by {ui.esc(r.flagged_by)}</span>',
+             f"<b>{int(r.n_events)}</b> vs {r.hist_mean:.1f}", ui.chip(r.strength, ui.STRENGTH[min(max(int(r.n_methods), 1), 3)][1])]
+            for r in al.head(8).itertuples()]
+    ui.table(["Month", "Signal", "Events vs usual", "Strength"], rows, numeric=(2,))
+    with st.expander(f"Sort, search and download all {len(al)} signals", icon=":material/table_view:"):
+        al["times"] = al.n_events / np.maximum(al.hist_mean, 0.5)
+        al["class_i"] = al.why_flagged.str.extract(r"(\d+)% of records Class I")[0].astype(float)
         out = al[["month_label", "kind", "name", "n_events", "hist_mean", "times", "flagged_by", "class_i", "strength"]]
+        st.caption("Click a column heading to sort. Hover over the table and use the magnifying glass to search.")
         st.dataframe(out, hide_index=True, width="stretch", column_config={
             "month_label": "Month", "kind": "Watching", "name": "Name", "n_events": "Events",
             "hist_mean": st.column_config.NumberColumn("Usual per month", format="%.1f"),
@@ -331,47 +346,46 @@ def latest_signals():
             "flagged_by": "Flagged by", "class_i": st.column_config.NumberColumn("Class I share", format="%d%%"),
             "strength": "Strength"})
         st.download_button("Download signals (CSV)", out.to_csv(index=False), "pharmasignal_signals.csv", "text/csv",
-                           icon=":material/download:")
+                           icon=":material/download:", type="primary")
 
-    with st.expander("How the three methods decide"):
-        m1, m2, m3 = st.columns(3)
-        m1.markdown("**Z-score**  \nHow far this month sits above the 12-month average, measured in standard deviations. "
-                    "Signals at 3 or more.")
-        m2.markdown("**IQR fence**  \nAbove the normal range of the last 12 months (Q3 + 1.5 × IQR). Earlier spikes do not "
-                    "distort it, so it caught the most past crises.")
-        m3.markdown("**Isolation Forest**  \nA machine-learning check of seven features together, such as event count, "
-                    "Class I share and number of firms involved.")
-        st.caption("Every method needs at least 3 events in the month and more than the 12-month average.")
+    ui.section("How a signal is detected", "Three independent methods check every month against the previous 12 months.")
+    ui.explainers([
+        ("straighten", "Z-score", "How far this month sits above the 12-month average, in standard deviations. Flags at 3 or more.", ""),
+        ("data_thresholding", "IQR fence", "Above the normal range of the last 12 months (Q3 + 1.5 × IQR). Earlier spikes do not distort "
+                           "it, so it caught the most past crises.", "blue"),
+        ("account_tree", "Isolation Forest", "A machine-learning check of seven features together, such as event count, Class I "
+                                  "share and the number of firms involved.", "amber")])
+    ui.tip("Every method needs at least 3 events in the month and more than the 12-month average. "
+           "<b>Strong</b> = all three agree, <b>Moderate</b> = two, <b>Low</b> = one.")
     ui.footer(d.source)
 
 
 def signal_trends():
-    ui.page_header("Trends and sensitivity", icon="📈", text=
-                   "See any failure type or dosage form month by month, and test how strict the signal rules should be.")
+    ui.page_header("Trend Explorer", icon="grid_view", text=
+                   "How each kind of quality failure has risen and fallen over time, and how strict the signal rules should be.")
     q = EVENTS.dropna(subset=["report_date_dt"]).copy()
-    q["quarter"] = q.report_date_dt.dt.to_period("Q").dt.start_time
     q["failure"] = q.analysis_category.map(nice_cat)
-    top5 = q.failure.value_counts().index[:5].tolist()
-    q["failure"] = q.failure.where(q.failure.isin(top5), "All other types")
-    tq = q.groupby(["quarter", "failure"]).event_id.nunique().reset_index(name="events")
-    st.subheader("Recall events per quarter, by failure type")
-    st.caption("The five most common failure types, with everything else grouped. Drag the slider under the chart to zoom.")
-    colours = [ui.TEAL, ui.BLUE, ui.AMBER, ui.CORAL, ui.P["GREEN"], ui.MIST]
-    fig = go.Figure()
-    for name, colour in zip(top5 + ["All other types"], colours):
-        sub = tq[tq.failure == name]
-        fig.add_trace(go.Scatter(x=sub.quarter, y=sub.events, name=name, mode="lines", stackgroup="one",
-                                 line=dict(width=0.8, color=colour), fillcolor=colour,
-                                 hovertemplate=f"<b>{name}</b><br>%{{x|%b %Y}} quarter: %{{y}} events<extra></extra>"))
-    fig.update_layout(hovermode="x unified")
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), title_text="")
-    fig.update_yaxes(title_text="Recall events")
-    ui.plotly_chart(fig, 420)
+    q["year"] = q.report_date_dt.dt.year
+    heat = q.groupby(["failure", "year"]).event_id.nunique().unstack(fill_value=0)
+    heat = heat.loc[heat.sum(1).sort_values(ascending=True).index]
+    ui.section("Recall events per year, by failure type",
+               "Darker squares mean more recalls. Read across a row to see one failure type over time, or down a column "
+               "to compare failure types in one year.")
+    years = [str(y) for y in heat.columns]
+    fig = go.Figure(go.Heatmap(
+        z=heat.values, x=years, y=list(heat.index), text=heat.values, texttemplate="%{text}",
+        textfont=dict(size=11), colorscale=[[0, "#F1F5F8"], [0.35, "#9ED9CB"], [1, ui.TEAL]], xgap=3, ygap=3,
+        hovertemplate="<b>%{y}</b><br>%{x}: %{z} recall events<extra></extra>",
+        colorbar=dict(title=dict(text="Events", side="top"), thickness=12, outlinewidth=0)))
+    fig.update_xaxes(side="top", showgrid=False, tickfont=dict(size=12))
+    fig.update_yaxes(showgrid=False, tickfont=dict(size=12.5, color=ui.P["TEXT"]))
+    ui.plotly_chart(fig, 38 * len(heat) + 110)
+    peak = heat.stack().idxmax()
+    ui.tip(f"<b>Biggest single cell:</b> {ui.esc(peak[0].lower())} in {peak[1]}, with {int(heat.stack().max())} recall events.")
 
     ms = d.monthly.copy()
-    ui.section("Try a different sensitivity")
-    st.caption("Stricter settings mean fewer alerts to review but more problems missed. Move the sliders to see the "
-               "trade-off for failure types and dosage forms.")
+    ui.section("Try a different sensitivity",
+               "Stricter settings mean fewer alerts to review but more problems missed. Move the sliders to see the trade-off.")
     s1, s2, s3 = st.columns(3)
     z = s1.slider("Z-score threshold", 2.0, 4.0, 3.0, 0.5)
     k = s2.slider("IQR fence multiplier", 1.0, 3.0, 1.5, 0.5)
@@ -383,52 +397,53 @@ def signal_trends():
     n_months = wl.month.nunique()
     base = (wl.flag_zscore.sum() / n_months, wl.flag_iqr.sum() / n_months)
     new = (wl.z_new.sum() / n_months, wl.iqr_new.sum() / n_months)
-    change = lambda n, o: "same as the project setting" if abs(n - o) < 0.005 else f"{n - o:+.2f} compared with the project setting"
+    change = lambda n, o: "same as the project setting" if abs(n - o) < 0.005 else f"{n - o:+.2f} vs the project setting"
     ui.kpis([(f"{new[0]:.2f}", f"Z-score alerts per month ({change(new[0], base[0])})", "teal"),
-             (f"{new[1]:.2f}", f"IQR alerts per month ({change(new[1], base[1])})", "teal")])
-
+             (f"{new[1]:.2f}", f"IQR alerts per month ({change(new[1], base[1])})", "blue")])
     options = ms[ms.series_type != "firm"][["series_type", "series_name"]].drop_duplicates().apply(tuple, axis=1).tolist()
     default = options.index(("category", "IMPURITIES")) if ("category", "IMPURITIES") in options else 0
-    pick = st.selectbox("Show the trend for", options, index=default,
+    pick = st.selectbox("Show the month-by-month trend for", options, index=default,
                         format_func=lambda t: nice_cat(t[1]) if t[0] == "category" else f"{t[1]} (dosage form)")
     s = ms[(ms.series_type == pick[0]) & (ms.series_name == pick[1])].copy()
     s["date"] = pd.to_datetime(s.month)
     s["signal"] = s.z_new | s.iqr_new
-    name = nice_cat(pick[1]) if pick[0] == "category" else pick[1]
-    st.subheader(f"{name}: monthly recall events, with signals at your settings")
-    base_c = alt.Chart(s).encode(x=alt.X("date:T", title=None))
-    ui.chart(base_c.mark_area(color=ui.TEAL, opacity=0.10).encode(y="n_events:Q")
-             + base_c.mark_line(color=ui.TEAL, strokeWidth=1.6).encode(
-                 y=alt.Y("n_events:Q", title="Recall events per month"),
-                 tooltip=[alt.Tooltip("month:N", title="Month"), alt.Tooltip("n_events:Q", title="Events"),
-                          alt.Tooltip("hist_mean:Q", title="Usual per month", format=".1f")])
-             + base_c.mark_line(strokeDash=[5, 4], color=ui.SLATE, strokeWidth=1.4).encode(y="hist_mean:Q")
-             + base_c.transform_filter("datum.signal").mark_point(color=ui.AMBER, size=90, filled=True, opacity=1,
-                                                                  stroke=ui.P["CARD"], strokeWidth=1.5).encode(y="n_events:Q"), 330)
-    st.caption("Teal line: recall events each month. Dashed line: the usual level (average of the previous 12 months). "
-               "Amber dots: months that signal at the settings above.")
-
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=s.date, y=s.n_events, name="Recall events", mode="lines", line=dict(color=ui.TEAL, width=2),
+                             fill="tozeroy", fillcolor="rgba(15,118,110,0.10)",
+                             hovertemplate="%{x|%b %Y}: %{y} events<extra></extra>"))
+    fig.add_trace(go.Scatter(x=s.date, y=s.hist_mean, name="Usual level (12-month average)", mode="lines",
+                             line=dict(color=ui.MUTED, width=1.6, dash="dash"), hovertemplate="Usual: %{y:.1f}<extra></extra>"))
+    sig = s[s.signal]
+    fig.add_trace(go.Scatter(x=sig.date, y=sig.n_events, name="Signal at your settings", mode="markers",
+                             marker=dict(size=11, color=ui.AMBER, line=dict(color="#FFFFFF", width=1.5)),
+                             hovertemplate="Signal: %{x|%b %Y}, %{y} events<extra></extra>"))
+    fig.update_yaxes(title_text="Recall events per month", rangemode="tozero")
+    ui.plotly_chart(fig, 360)
     ui.footer(d.source)
 
 
 def backtest_page():
-    ui.page_header("Back-test", icon="🧭", text=
+    ui.page_header("Crisis Back-test", icon="history", text=
                    "Would PharmaSignal have recognised real recall crises? We replayed six known events using only the data "
                    "available at the time.")
-    if len(d.backtest):
-        st.subheader("Crises detected, and the alert workload, for each method")
-        ms_ = d.method_summary.copy()
-        ms_["method"] = ms_.method.map({"iqr": "IQR fence", "zscore": "Z-score", "iforest": "Isolation Forest",
-                                        "consensus": "Consensus (2+ agree)"}).fillna(ms_.method)
-        st.dataframe(ms_[["method", "events_detected", "watch_alerts_per_month", "median_lead_vs_public"]],
-                     hide_index=True, width="stretch", column_config={
-                         "method": "Method", "events_detected": st.column_config.ProgressColumn(
-                             "Crises detected, of 6", min_value=0, max_value=6, format="%d"),
-                         "watch_alerts_per_month": st.column_config.NumberColumn("Alerts per month", format="%.2f"),
-                         "median_lead_vs_public": st.column_config.NumberColumn("Months after public news", format="%+.0f")})
-        ui.note("<b>What this means:</b> signals arrived in the crisis peak month, about 2 months after the news, mainly "
-                "because the FDA publishes recalls weeks after they start. PharmaSignal recognises clusters; it does not "
-                "predict them. Slow-building problems such as benzene in sprays produced no monthly spike.", "limit")
+    if len(d.method_summary):
+        st.subheader("Crises detected and alert workload, by method")
+        names = {"iqr": "IQR fence", "zscore": "Z-score", "iforest": "Isolation Forest", "consensus": "Consensus (2+ agree)"}
+        rows = []
+        for r in d.method_summary.itertuples():
+            best = r.method == "iqr"
+            rows.append([f"<b>{ui.esc(names.get(r.method, r.method))}</b>" + (' ' + ui.chip("Best", "teal") if best else ""),
+                         ui.bar_cell(int(r.events_detected), 6) + f'<span class="sub">{int(r.events_detected)} of 6 crises</span>',
+                         f"{r.watch_alerts_per_month:.2f}", f"{r.median_lead_vs_public:+.0f}"])
+        ui.table(["Method", "Crises detected", "Alerts per month", "Months vs public news"], rows, numeric=(2, 3))
+        ui.explainers([
+            ("task_alt", "What worked", "The IQR fence recognised 4 of 6 crises (sartans, ranitidine, metformin, methanol) at under "
+                                 "one alert a month.", "green"),
+            ("schedule", "Timing", "Signals arrived in the crisis peak month, about 2 months after the news, because the FDA "
+                            "publishes recalls weeks after they start. PharmaSignal recognises clusters; it does not predict them.",
+             "amber"),
+            ("trending_flat", "What it missed", "Slow-building problems such as benzene in sprays and contaminated eye drops never "
+                                    "produced a sharp monthly spike.", "coral")])
     figs = core.OUT / "figures"
     if (figs / "backtests.png").exists():
         ui.section("The six crises, month by month")
@@ -474,29 +489,30 @@ def bidder_status(row):
 
 
 def tender():
-    ui.page_header("Tender screening", icon="📋", text=
+    ui.page_header("Tender Screener", icon="fact_check", text=
                    "See each bidder's FDA recall evidence side by side, with a checklist of documents to request before award.")
     ui.steps(["Add the bidders: type them, upload a list, or use the example", "Enter the product being tendered",
               "Screen, then download each bidder's evidence brief"])
     if "bidders_text" not in st.session_state:
         st.session_state.bidders_text = ""
-    left, right = st.columns([3, 2], gap="large")
-    with left:
-        tab_type, tab_upload = st.tabs(["Type the names", "Upload a list"])
-        with tab_type:
-            st.text_area("Bidders, one per line", key="bidders_text", height=140,
-                         placeholder="e.g. Sun Pharmaceutical Industries")
-            st.button("Use example bidders", icon=":material/science:", on_click=fill_example)
-        with tab_upload:
-            up = st.file_uploader("CSV or Excel file, one bidder per row", type=["csv", "xlsx"],
-                                  help="Uses a column called 'bidder' (or firm, supplier, name), otherwise the first column.")
-            st.download_button("Download a template", "bidder\nSun Pharmaceutical Industries\nLupin Pharmaceuticals\n",
-                               "bidder_template.csv", "text/csv")
-    with right:
-        product = st.text_input("Product being tendered", key="product", placeholder="e.g. metformin")
-        run = st.button("Screen bidders", type="primary", icon=":material/fact_check:", width="stretch")
-        ui.note("<b>Good to know:</b> no US FDA record is not evidence of good quality. The firm may not sell in the US "
-                "or may trade under another name.", "limit")
+    with st.container(border=True):
+        left, right = st.columns([3, 2], gap="large")
+        with left:
+            tab_type, tab_upload = st.tabs([":material/edit: Type the names", ":material/upload_file: Upload a list"])
+            with tab_type:
+                st.text_area("Bidders, one per line", key="bidders_text", height=140,
+                             placeholder="e.g. Sun Pharmaceutical Industries")
+                st.button("Use example bidders", icon=":material/science:", on_click=fill_example)
+            with tab_upload:
+                up = st.file_uploader("CSV or Excel file, one bidder per row", type=["csv", "xlsx"],
+                                      help="Uses a column called 'bidder' (or firm, supplier, name), otherwise the first column.")
+                st.download_button("Download a template", "bidder\nSun Pharmaceutical Industries\nLupin Pharmaceuticals\n",
+                                   "bidder_template.csv", "text/csv", icon=":material/download:")
+        with right:
+            product = st.text_input("Product being tendered", key="product", placeholder="e.g. metformin")
+            run = st.button("Screen bidders", type="primary", icon=":material/fact_check:", width="stretch")
+            ui.tip("No US FDA record is <b>not</b> evidence of good quality. The firm may not sell in the US or may "
+                   "trade under another name.")
 
     bidders = [b.strip() for b in st.session_state.bidders_text.splitlines() if b.strip()]
     if up is not None:
@@ -523,13 +539,36 @@ def tender():
         prod_col = f"{prod}_recalls"
         statuses = [bidder_status(r) for _, r in table.iterrows()]
         tones = [s[1] for s in statuses]
-        ui.section(f"Results for {len(table)} bidders, {prod}")
-        ui.kpis([(f"{len(table)}", "bidders screened", ""),
+        ui.section(f"Results: {len(table)} bidders for {prod}")
+        ui.kpis([(f"{len(table)}", "bidders screened", "blue"),
                  (f"{tones.count('coral')}", "with a Class I recall in the last 12 months", "coral"),
                  (f"{tones.count('amber')}", "with other evidence to discuss", "amber"),
                  (f"{tones.count('grey')}", "with no FDA recall record", "")])
         order = {"coral": 0, "amber": 1, "teal": 2, "grey": 3}
-        for i in sorted(range(len(table)), key=lambda i: order[tones[i]]):
+        idx = sorted(range(len(table)), key=lambda i: order[tones[i]])
+        mx = max(1, int(table.events_total.max()))
+        rows = []
+        for i in idx:
+            r, (status, tone, _) = table.iloc[i], statuses[i]
+            if r.matched_firm == "-":
+                matched = "Not found in FDA records"
+            elif firm_title(r.matched_firm).lower() == r.bidder.lower():
+                matched = "Exact name match"
+            else:
+                matched = f"Matched to {firm_title(r.matched_firm)}"
+            rows.append([f'<b>{ui.esc(r.bidder)}</b><span class="sub">{ui.esc(matched)}</span>', ui.chip(status, tone),
+                         ui.bar_cell(int(r.events_total), mx), f"{int(r.events_12m)}",
+                         ui.chip(f"{int(r.class_I_12m)}", "coral" if r.class_I_12m else "grey"), f"{int(r[prod_col])}"])
+        ui.table(["Bidder", "Status", "All recall events", "Last 12 months", "Class I, 12 months", f"{prod.title()} recalls"],
+                 rows, numeric=(3, 5))
+        dl1, dl2 = st.columns(2)
+        dl1.download_button("Download the summary (CSV)", table.to_csv(index=False), "tender_screening.csv",
+                            "text/csv", width="stretch", icon=":material/download:", type="primary")
+        dl2.download_button("Download all evidence briefs", "\n\n---\n\n".join(briefs.values()), "tender_briefs.md",
+                            "text/markdown", width="stretch", icon=":material/download:", type="primary")
+
+        ui.section("Evidence for each bidder", "Most serious first. Open a brief for the full checklist of documents to request.")
+        for i in idx:
             r, (status, tone, nxt) = table.iloc[i], statuses[i]
             match = ("Not found among FDA recalling firms" if r.matched_firm == "-"
                      else f"Matched to {firm_title(r.matched_firm)} ({r.match})")
@@ -538,26 +577,29 @@ def tender():
                            [("All recall events", int(r.events_total)), ("Last 12 months", int(r.events_12m)),
                             ("Class I, last 12 months", int(r.class_I_12m)), (f"{prod.title()} recalls", int(r[prod_col]))],
                            nxt)
-            with st.expander(f"Evidence brief and checklist for {r.bidder}"):
+            with st.expander(f"Evidence brief and checklist: {r.bidder}", icon=":material/description:"):
                 st.markdown(briefs[r.bidder])
                 st.download_button("Download this brief", briefs[r.bidder], key=f"dl-{r.bidder}",
-                                   file_name=re.sub(r"[^a-z0-9]+", "_", r.bidder.lower()) + ".md", mime="text/markdown")
-        dl1, dl2 = st.columns(2)
-        dl1.download_button("Download the summary table (CSV)", table.to_csv(index=False), "tender_screening.csv",
-                            "text/csv", width="stretch", icon=":material/download:")
-        dl2.download_button("Download all evidence briefs", "\n\n---\n\n".join(briefs.values()), "tender_briefs.md",
-                            "text/markdown", width="stretch", icon=":material/download:")
+                                   file_name=re.sub(r"[^a-z0-9]+", "_", r.bidder.lower()) + ".md", mime="text/markdown",
+                                   icon=":material/download:")
 
     ui.section("Watch list: firms with recent evidence flags",
-               f"Firms with recall activity and at least one flag between {d.recent_start} and {d.last_month}.")
+               f"Firms with recall activity and at least one flag between {month_label(d.recent_start)} and {month_label(d.last_month)}.")
     watch = d.fe[(d.fe.events_12m > 0) & (d.fe.n_flags > 0)].sort_values(["n_flags", "events_12m"], ascending=False).copy()
-    watch["firm_std"] = watch.firm_std.map(firm_title)
-    watch["flags"] = watch["flags"].map(nice_flags)
-    st.dataframe(watch[["firm_std", "events_12m", "class_I_events_12m", "prior_events_per_year", "alert_months_12m", "flags"]],
-                 hide_index=True, width="stretch", column_config={
-                     "firm_std": "Firm", "events_12m": "Events, last 12 months", "class_I_events_12m": "Class I",
-                     "prior_events_per_year": st.column_config.NumberColumn("Usual per year", format="%.1f"),
-                     "alert_months_12m": "Signal months", "flags": st.column_config.TextColumn("Evidence flags", width="large")})
+    rows = [[f"<b>{ui.esc(firm_title(r.firm_std))}</b>", f"{int(r.events_12m)}",
+             ui.chip(f"{int(r.class_I_events_12m)}", "coral" if r.class_I_events_12m else "grey"),
+             f"{r.prior_events_per_year:.1f}", ui.esc(nice_flags(r.flags))] for r in watch.head(10).itertuples()]
+    ui.table(["Firm", "Events, 12 months", "Class I", "Usual per year", "Evidence flags"], rows, numeric=(1, 3))
+    if len(watch) > 10:
+        with st.expander(f"See all {len(watch)} firms on the watch list", icon=":material/table_view:"):
+            w = watch.copy()
+            w["firm_std"] = w.firm_std.map(firm_title)
+            w["flags"] = w["flags"].map(nice_flags)
+            st.dataframe(w[["firm_std", "events_12m", "class_I_events_12m", "prior_events_per_year", "alert_months_12m", "flags"]],
+                         hide_index=True, width="stretch", column_config={
+                             "firm_std": "Firm", "events_12m": "Events, 12 months", "class_I_events_12m": "Class I",
+                             "prior_events_per_year": st.column_config.NumberColumn("Usual per year", format="%.1f"),
+                             "alert_months_12m": "Signal months", "flags": st.column_config.TextColumn("Evidence flags", width="large")})
     ui.footer(d.source)
 
 
@@ -592,11 +634,29 @@ def clean_title(title):
     return re.sub(r"\s*\(SQL\)", "", title)
 
 
+ANSWER_PARTS = {"facts from the data": ("teal", ui.icon("database") + "Facts from the data"),
+                "what this may mean": ("blue", ui.icon("lightbulb") + "What this may mean"),
+                "limitations and checks to make": ("amber", ui.icon("warning") + "Limitations and checks to make")}
+_PART_RE = re.compile(r"^[ \t]*(?:#{1,6}[ \t]*)?\*{0,2}[ \t]*(Facts from the data|What this may mean|Limitations and checks to make)"
+                      r"[ \t]*\*{0,2}[ \t]*:?[ \t]*\*{0,2}[ \t]*$", re.I | re.M)
+
+
+def answer_blocks(text):
+    parts = _PART_RE.split(text)
+    if len(parts) < 3:
+        return [("teal", ui.icon("database") + "Answer", text)]
+    blocks = [("grey", "", parts[0])] if parts[0].strip() else []
+    for title, body in zip(parts[1::2], parts[2::2]):
+        tone, label = ANSWER_PARTS.get(title.strip().lower(), ("teal", title))
+        blocks.append((tone, label, body.strip()))
+    return blocks
+
+
 def assistant():
-    ui.page_header("PharmaSignal AI assistant", ai=True, icon="🤖", text=
+    ui.page_header("Ask PharmaSignal AI", ai=True, icon="smart_toy", text=
                    "Ask in plain English about firms, products, failure types or signals. Answers use only the recall data, "
                    "cite recall numbers, and are checked by code before you see them.")
-    ui.steps(["Pick an example or type your own question", "Read the answer and the recall numbers it cites",
+    ui.steps(["Pick an example or type your own question", "Read the colour-coded answer and the recall numbers it cites",
               "Open 'Sources and data used' to check the evidence"])
     allowed = llm is not None and llm_allowed()
     if llm is None:
@@ -605,11 +665,18 @@ def assistant():
     elif not allowed:
         ui.note("<b>Written answers are paused.</b> Today's limit for this app has been reached, so you see the evidence "
                 "only. Written answers start again tomorrow.", "warn")
+    ui.explainers([("database", "Facts from the data", "Numbers and recall IDs taken straight from the database.", ""),
+                   ("lightbulb", "What this may mean", "Claude's interpretation, clearly separated from the facts.", "blue"),
+                   ("warning", "Limitations and checks", "What the data cannot tell you, and what to ask a supplier.", "amber")])
     if "chat" not in st.session_state:
         st.session_state.chat = []
+    st.markdown('<p class="ps-infolabel">Try an example question:</p>', unsafe_allow_html=True)
     cols = st.columns(2)
-    clicked = next((q for i, q in enumerate(EXAMPLES) if cols[i % 2].button(q, width="stretch", key=f"ex{i}",
-                                                                           icon=":material/chat_bubble:")), None)
+    clicked = None
+    for i, q in enumerate(EXAMPLES):
+        with cols[i % 2]:
+            if st.button(q, width="stretch", key=f"askq_{i}", icon=":material/chat_bubble:"):
+                clicked = q
     question = st.chat_input("Ask about recalls, firms, products or signals...") or clicked
 
     if question:
@@ -623,45 +690,48 @@ def assistant():
             except Exception as e:
                 friendly_error("The search", e)
 
-    for q, res in reversed(st.session_state.chat):
-        with st.chat_message("user", avatar=":material/person:"):
-            st.write(q)
-        with st.chat_message("assistant", avatar=":material/medication:"):
-            for w in res["warnings"]:
-                ui.note(w, "warn")
-            if res["answer"]:
-                with st.container(border=True):
-                    st.markdown(res["answer"])
-                if res["verified"]:
-                    st.caption(":material/verified: Checked: every number and recall ID in this answer appears in the "
-                               f"evidence. Written by Claude ({core.LLM_MODEL}) from PharmaSignal data only.")
-                else:
-                    ui.note("<b>Check this answer carefully.</b> Some numbers or IDs could not be matched to the evidence: "
-                            f"{ui.esc(res['status'])}", "warn")
+    for n, (q, res) in enumerate(reversed(st.session_state.chat)):
+        st.markdown(f'<div class="ps-userq">{ui.esc(q)}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ps-aitag">' + ui.icon("smart_toy") + 'PharmaSignal AI</div>', unsafe_allow_html=True)
+        for w in res["warnings"]:
+            ui.note(w, "warn")
+        if res["answer"]:
+            for j, (tone, label, body) in enumerate(answer_blocks(res["answer"])):
+                with st.container(key=f"ans_{tone}_{n}_{j}"):
+                    if label:
+                        st.markdown(f'<div class="ps-anshead {tone}">{label}</div>', unsafe_allow_html=True)
+                    st.markdown(body)
+            if res["verified"]:
+                st.caption(f":material/verified: Checked: every number and recall ID appears in the evidence. "
+                           f"Written by Claude ({core.LLM_MODEL}) from PharmaSignal data only.")
             else:
-                if res["status"].startswith("Claude call failed"):
-                    reason = re.search(r"\((\w+)\)", res["status"])
-                    reason = reason.group(1) if reason else "unknown error"
-                    hint = {"AuthenticationError": "The API key was rejected. Check it in the app's Secrets.",
-                            "PermissionDeniedError": "The API key has no access to this model.",
-                            "NotFoundError": "The model name is not available. Remove LLM_MODEL from Secrets.",
-                            "RateLimitError": "Too many requests at once. Wait a minute and try again.",
-                            "BadRequestError": "Usually means the account has no credit. Check Billing in the Anthropic Console."
-                            }.get(reason, "Try again in a minute.")
-                    ui.note(f"<b>Claude could not answer ({ui.esc(reason)}).</b> {ui.esc(hint)} "
-                            "Here is the evidence on its own.", "limit")
-                st.markdown("**Here is what the data shows**")
+                ui.note("<b>Check this answer carefully.</b> Some numbers or IDs could not be matched to the evidence: "
+                        f"{ui.esc(res['status'])}", "warn")
+        else:
+            if res["status"].startswith("Claude call failed"):
+                reason = re.search(r"\((\w+)\)", res["status"])
+                reason = reason.group(1) if reason else "unknown error"
+                hint = {"AuthenticationError": "The API key was rejected. Check it in the app's Secrets.",
+                        "PermissionDeniedError": "The API key has no access to this model.",
+                        "NotFoundError": "The model name is not available. Remove LLM_MODEL from Secrets.",
+                        "RateLimitError": "Too many requests at once. Wait a minute and try again.",
+                        "BadRequestError": "Usually means the account has no credit. Check Billing in the Anthropic Console."
+                        }.get(reason, "Try again in a minute.")
+                ui.note(f"<b>Claude could not answer ({ui.esc(reason)}).</b> {ui.esc(hint)} Here is the evidence on its own.",
+                        "limit")
+            with st.container(key=f"ans_teal_ev_{n}"):
+                st.markdown('<div class="ps-anshead teal">' + ui.icon("database") + 'What the data shows</div>', unsafe_allow_html=True)
                 for title, tab in res["facts"]:
                     st.caption(clean_title(title))
                     st.dataframe(tidy(tab), hide_index=True, width="stretch")
-                st.markdown("**Closest recall records**")
-                ui.evidence_cards(res["evidence"])
-            with st.expander("Sources and data used"):
-                if res["answer"]:
-                    for title, tab in res["facts"]:
-                        st.caption(clean_title(title))
-                        st.dataframe(tidy(tab), hide_index=True, width="stretch")
-                ui.evidence_cards(res["evidence"], n=len(res["evidence"]), length=400)
+            st.markdown('<div class="ps-anshead grey">' + ui.icon("search") + 'Closest recall records</div>', unsafe_allow_html=True)
+            ui.evidence_cards(res["evidence"])
+        with st.expander("Sources and data used", icon=":material/source:"):
+            if res["answer"]:
+                for title, tab in res["facts"]:
+                    st.caption(clean_title(title))
+                    st.dataframe(tidy(tab), hide_index=True, width="stretch")
+            ui.evidence_cards(res["evidence"], n=len(res["evidence"]), length=400)
     if st.session_state.chat:
         if st.button("Clear conversation", icon=":material/delete:"):
             st.session_state.chat = []
@@ -702,89 +772,110 @@ def evaluation_view(ev):
 
 
 def how_it_works():
-    ui.page_header("How it works", icon="⚙️", text="How PharmaSignal turns recall records into evidence, how well it works, and what it cannot tell you.")
-    ui.section("How it works")
+    ui.page_header("Methods & Evidence", icon="settings", text=
+                   "How PharmaSignal turns recall records into evidence, how well it works, and what it cannot tell you.")
+    ui.section("From raw records to answers")
     ui.steps([f"Take a fixed snapshot of {d.provenance['records']:,} FDA recall records",
               "Clean firm names and assign each product a dosage form",
               "Classify every recall reason into a failure type",
               "Compare each month with the previous 12 to find signals",
               "Summarise each firm's record as factual flags",
               "Answer questions from the data, checked by code"])
-    with st.expander("Method details"):
-        st.markdown(f"""
-- **Snapshot:** {d.provenance['records']:,} openFDA drug-enforcement records ({d.provenance['events']:,} recall events),
-  {d.provenance['report_date_range'][0]} to {d.provenance['report_date_range'][1]}, fingerprinted with SHA-256.
-- **Classifier:** TF-IDF features with logistic regression; low-confidence predictions go to human review.
-- **Signals:** z-score, IQR fence and Isolation Forest, each using only past months.
-- **Assistant:** SQL facts plus the closest recall records go to Claude; a checker verifies every number and recall ID.
-""")
-    ui.section("How well it works")
+    ui.explainers([
+        ("inventory_2", "Data snapshot", f"{d.provenance['records']:,} openFDA records ({d.provenance['events']:,} recall events), "
+                               f"{d.provenance['report_date_range'][0]} to {d.provenance['report_date_range'][1]}, "
+                               "fingerprinted with SHA-256 so results can be reproduced.", ""),
+        ("model_training", "Classifier", "TF-IDF features with logistic regression sort reasons into 10 failure types; low-confidence "
+                            "predictions go to human review.", "blue"),
+        ("radar", "Signals", "Z-score, IQR fence and Isolation Forest, each using only past months, so nothing peeks at the future.",
+         "amber"),
+        ("smart_toy", "AI assistant", "Database facts and the closest recall records go to Claude; a code checker verifies every "
+                              "number and recall ID.", "green")])
+
+    ui.section("How well it works", "Results from the analysis notebook, measured against the targets set in the proposal.")
     if len(d.evaluation):
-        ui.eval_table(evaluation_view(d.evaluation))
+        ev = evaluation_view(d.evaluation)
+        rows = [[f"<b>{ui.esc(r.component)}</b>", ui.esc(r.target), ui.esc(r.achieved),
+                 ui.chip(r.status, ui.STATUS_TONE.get(r.status, "amber"))] for r in ev.itertuples()]
+        ui.table(["Component", "Target", "Result", "Status"], rows)
 
     ui.section("What it cannot tell you")
-    ui.note("""<ul style="margin:0;padding-left:1.1rem">
-<li>It uses US FDA data only. Products, sites and batches sold in other markets may differ.</li>
-<li>No recall record is not evidence of good quality.</li>
-<li>The recalling firm may be a distributor or repackager rather than the manufacturer.</li>
-<li>Signals come about 2 months after public news, because of the FDA's publication lag.</li>
-<li>Decisions stay with people, alongside national regulator registration, GMP status and laboratory testing.</li></ul>""", "limit")
+    ui.explainers([
+        ("public", "US data only", "Products, sites and batches sold in other markets may differ.", "coral"),
+        ("help", "No record is not proof", "A firm with no recalls may simply not sell in the US.", "coral"),
+        ("sell", "Recalling firm", "It may be a distributor or repackager rather than the manufacturer.", "coral"),
+        ("schedule", "Publication lag", "Signals come about 2 months after public news, because the FDA publishes late.", "coral")])
+    ui.tip("Decisions stay with people, alongside national regulator registration, GMP status and laboratory testing.")
 
     ui.section("Key terms")
-    st.dataframe(pd.DataFrame({"Term": list(TERMS), "Meaning": list(TERMS.values())}), hide_index=True, width="stretch",
-                 column_config={"Term": st.column_config.TextColumn(width="small"),
-                                "Meaning": st.column_config.TextColumn(width="large")})
-
+    ui.table(["Term", "Meaning"], [[f"<b>{ui.esc(k)}</b>", ui.esc(v)] for k, v in TERMS.items()])
     ui.footer(d.source)
 
 
 def team_feedback():
-    ui.page_header("Team and feedback", icon="👥", text="Who built PharmaSignal, how AI was used, and how to tell us what you think.")
+    ui.page_header("Team & Feedback", icon="groups", text=
+                   "Who built PharmaSignal, how AI was used, and how you can help us improve it.")
     ui.section("The team")
     ui.team_cards(ui.TEAM)
 
     ui.section("Use of AI")
-    st.markdown("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook and "
-                "are being checked with a blind human review of 150 records. Claude also assisted with code and documentation, and "
-                "writes the assistant's answers from the evidence shown.")
+    ui.tip("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook, and are being "
+           "checked with a blind human review of 150 records. Claude also assisted with code and documentation, and writes "
+           "the assistant's answers from the evidence shown.")
 
-    ui.section("Tell us what you think")
-    with st.form("feedback", clear_on_submit=True):
-        rating = st.feedback("thumbs")
-        comment = st.text_area("What would make PharmaSignal more useful?", placeholder="Optional")
-        sent = st.form_submit_button("Send feedback", icon=":material/send:")
+    ui.section("Your feedback")
+    with st.container(key="cta_feedback"):
+        st.markdown('<div class="ps-ctahead"><span class="badge">Your input needed</span><h4>Help us improve PharmaSignal</h4></div>',
+                    unsafe_allow_html=True)
+        st.caption("It takes under a minute. Every answer is read by the team.")
+        with st.form("feedback", clear_on_submit=True, border=False):
+            rating = st.feedback("stars")
+            useful = st.radio("Which part was most useful?", ["Tender Screener", "Signal Radar", "Ask PharmaSignal AI",
+                                                               "Recall Insights", "Not sure yet"], horizontal=True)
+            comment = st.text_area("What should we add, change or explain better?", placeholder="Your suggestion")
+            sent = st.form_submit_button("Send feedback", icon=":material/send:", type="primary")
     if sent:
         if rating is None and not comment.strip():
-            st.warning("Choose thumbs up or down, or write a comment, before sending.")
+            st.warning("Give a star rating or write a suggestion before sending.")
         else:
             row = pd.DataFrame([{"time_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                 "rating": {0: "down", 1: "up"}.get(rating, ""), "comment": comment.strip()}])
+                                 "stars": "" if rating is None else rating + 1, "most_useful": useful,
+                                 "comment": comment.strip()}])
             try:
                 path = core.OUT / "feedback.csv"
                 row.to_csv(path, mode="a", header=not path.exists(), index=False)
                 st.success("Feedback sent. Thank you.")
             except Exception:
                 st.success("Thank you. Feedback could not be saved on this server, so please also tell the team.")
+
+    ui.section("Action points", "What the team is doing next, and where your input fits in.")
+    ui.actions([
+        ("Complete the blind label check", "150 records labelled independently by the team, then Cohen's kappa reported.",
+         "Scheduled", "grey"),
+        ("Test with someone outside the team", "Five minutes, unhelped, following USER_TEST.md; fix the top problems found.",
+         "Planned", "amber"),
+        ("Collect stakeholder feedback", "Use the form above during and after the presentation.", "Open now", "teal"),
+        ("Refresh the data before real use", "Re-run the notebook on a new openFDA snapshot and redeploy.", "Future", "grey")])
     ui.footer(d.source)
 
 
 # ============================================================ navigation and sidebar
 home_pg = st.Page(home, title="Home", icon=":material/home:", default=True)
-findings_pg = st.Page(key_findings, title="Key findings", icon=":material/insights:", url_path="findings")
-failures_pg = st.Page(what_goes_wrong, title="What goes wrong", icon=":material/science:", url_path="failures")
-firms_pg = st.Page(firms_and_records, title="Firms and records", icon=":material/factory:", url_path="firms")
-latest_pg = st.Page(latest_signals, title="Latest signals", icon=":material/notifications_active:", url_path="signals")
-trends_pg = st.Page(signal_trends, title="Trends and sensitivity", icon=":material/show_chart:", url_path="trends")
-backtest_pg = st.Page(backtest_page, title="Back-test", icon=":material/history:", url_path="backtest")
-tender_pg = st.Page(tender, title="Tender screening", icon=":material/fact_check:", url_path="tender")
-ask_pg = st.Page(assistant, title="AI assistant", icon=":material/smart_toy:", url_path="ask")
-how_pg = st.Page(how_it_works, title="How it works", icon=":material/settings:", url_path="how")
-team_pg = st.Page(team_feedback, title="Team and feedback", icon=":material/groups:", url_path="team")
+findings_pg = st.Page(key_findings, title="At a Glance", icon=":material/insights:", url_path="findings")
+failures_pg = st.Page(what_goes_wrong, title="Failure Patterns", icon=":material/science:", url_path="failures")
+firms_pg = st.Page(firms_and_records, title="Firm Directory", icon=":material/factory:", url_path="firms")
+latest_pg = st.Page(latest_signals, title="Signal Radar", icon=":material/radar:", url_path="signals")
+trends_pg = st.Page(signal_trends, title="Trend Explorer", icon=":material/show_chart:", url_path="trends")
+backtest_pg = st.Page(backtest_page, title="Crisis Back-test", icon=":material/history:", url_path="backtest")
+tender_pg = st.Page(tender, title="Tender Screener", icon=":material/fact_check:", url_path="tender")
+ask_pg = st.Page(assistant, title="Ask PharmaSignal AI", icon=":material/smart_toy:", url_path="ask")
+how_pg = st.Page(how_it_works, title="Methods & Evidence", icon=":material/settings:", url_path="how")
+team_pg = st.Page(team_feedback, title="Team & Feedback", icon=":material/groups:", url_path="team")
 pg = st.navigation({"Start": [home_pg],
-                    "Explore the data": [findings_pg, failures_pg, firms_pg],
-                    "Recall signals": [latest_pg, trends_pg, backtest_pg],
-                    "Decide": [tender_pg, ask_pg],
-                    "About": [how_pg, team_pg]})
+                    "Recall Insights": [findings_pg, failures_pg, firms_pg],
+                    "Early Warning": [latest_pg, trends_pg, backtest_pg],
+                    "Decision Tools": [tender_pg, ask_pg],
+                    "About the Project": [how_pg, team_pg]})
 
 pg.run()
 

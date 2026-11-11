@@ -81,16 +81,16 @@ An interactive web app built on the notebook's results, with eleven short pages 
 | Group | Page | What it shows |
 |---|---|---|
 | Start | **Home** | What PharmaSignal AI is, who it is for, and where to start |
-| Explore the data | **Key findings** | Four headline facts and recall severity year by year |
-| | **What goes wrong** | Failure types and dosage forms behind recalls |
-| | **Firms and records** | Firms with the most recalls, and a search across all records |
-| Recall signals | **Latest signals** | Recent surges in recalls, explained in plain words |
-| | **Trends and sensitivity** | Any series month by month, with sliders to test the signal rules |
-| | **Back-test** | Whether the detectors would have recognised six real crises |
-| Decide | **Tender screening** | Type or upload bidders; evidence cards, briefs and downloads |
-| | **AI assistant** | Plain-English questions answered from the data, checked by code |
-| About | **How it works** | Method, evaluation results, limitations and key terms |
-| | **Team and feedback** | The team and roles, use of AI, and a feedback form |
+| Recall Insights | **At a Glance** | Four headline facts and recall severity year by year |
+| | **Failure Patterns** | Failure types and dosage forms behind recalls |
+| | **Firm Directory** | The firms that recall most often, and a search across all records |
+| Early Warning | **Signal Radar** | Recent surges in recalls, how big each jump was, and how strong the signal is |
+| | **Trend Explorer** | Recalls per year by failure type, and sliders to test the signal rules |
+| | **Crisis Back-test** | Whether the detectors would have recognised six real crises |
+| Decision Tools | **Tender Screener** | Type or upload bidders; colour-coded results, evidence briefs and downloads |
+| | **Ask PharmaSignal AI** | Plain-English questions with colour-coded answers, checked by code |
+| About the Project | **Methods & Evidence** | Method, evaluation results, limitations and key terms |
+| | **Team & Feedback** | The team, use of AI, a feedback form and the team's action points |
 
 1. **Run the notebook once** (Restart & Run All). It creates the `outputs/` folder the app reads; the app does not retrain anything.
 2. From the project folder, start the app:

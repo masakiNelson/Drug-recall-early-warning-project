@@ -99,6 +99,7 @@ def _css():
     return f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block');
 :root {{ --ps-ink:{p['INK']}; --ps-text:{p['TEXT']}; --ps-muted:{p['MUTED']}; --ps-card:{p['CARD']}; --ps-line:{p['LINE']};
         --ps-teal:{p['TEAL']}; --ps-teal-soft:{p['TEAL_SOFT']}; --ps-teal-text:{p['TEAL_TEXT']}; }}
 html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
@@ -275,6 +276,112 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 [data-testid="stSidebar"] .ps-side .dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }}
 .ps-kpi, .ps-who > div, .ps-aiband, .ps-steps > div, .ps-classes > div, .ps-bid, .ps-sig, .ps-ev, .ps-team > div,
 .ps-eval, .stMain [data-testid="stPageLink"] a {{ box-shadow: 0 1px 2px rgba(11,34,57,0.04), 0 4px 14px rgba(11,34,57,0.05); }}
+/* ---- clickable vs information: anything you can click is teal-tinted with an arrow; information panels are flat */
+.stMain [data-testid="stPageLink"] a {{ background: {p['TEAL_SOFT']} !important; border: 1.5px solid {p['TEAL']} !important;
+  border-radius: 14px !important; padding: 13px 16px !important; justify-content: center; transition: all .15s ease; }}
+.stMain [data-testid="stPageLink"] a:hover {{ background: {p['TEAL']} !important; }}
+.stMain [data-testid="stPageLink"] a:hover p, .stMain [data-testid="stPageLink"] a:hover span {{ color: #FFFFFF !important; }}
+.stMain [data-testid="stPageLink"] a p {{ color: {p['TEAL_TEXT']} !important; font-weight: 700 !important; }}
+.stMain [data-testid="stPageLink"] a span[data-testid="stIconMaterial"] {{ color: {p['TEAL']} !important; }}
+.stMain [data-testid="stPageLink"] a::after {{ content: "›"; font-size: 1.35rem; line-height: 1; margin-left: 10px;
+  color: {p['TEAL']}; font-weight: 700; }}
+.stMain [data-testid="stPageLink"] a:hover::after {{ color: #FFFFFF; }}
+.ps-who > div {{ background: {p['GREY_SOFT']} !important; border: none !important; box-shadow: none !important; text-align: left !important; }}
+.ps-who b {{ color: {p['MUTED']} !important; font-size: 0.8rem !important; text-transform: none; }}
+.ps-infolabel {{ text-align: center; color: {p['MUTED']}; font-size: 0.86rem; margin: 2px 0 12px 0; }}
+
+/* ---- expanders read as buttons, so nobody misses them */
+.stMain [data-testid="stExpander"] details {{ border: 1.5px solid {p['TEAL']} !important; border-radius: 12px !important;
+  overflow: hidden; background: {p['CARD']}; }}
+.stMain [data-testid="stExpander"] summary {{ background: {p['TEAL_SOFT']}; padding-top: 10px; padding-bottom: 10px; }}
+.stMain [data-testid="stExpander"] summary p, .stMain [data-testid="stExpander"] summary span {{ color: {p['TEAL_TEXT']} !important;
+  font-weight: 700 !important; }}
+.stMain [data-testid="stExpander"] summary svg {{ color: {p['TEAL']} !important; }}
+.stMain [data-testid="stExpander"] summary:hover {{ background: {p['TEAL']}; }}
+.stMain [data-testid="stExpander"] summary:hover p, .stMain [data-testid="stExpander"] summary:hover span,
+.stMain [data-testid="stExpander"] summary:hover svg {{ color: #FFFFFF !important; }}
+
+/* ---- readable tables */
+.ps-table {{ width: 100%; border-collapse: separate; border-spacing: 0; background: {p['CARD']}; border: 1px solid {p['LINE']};
+            border-radius: 14px; overflow: hidden; font-size: 0.95rem; margin: 4px 0 10px 0;
+            box-shadow: 0 1px 2px rgba(11,34,57,0.04), 0 4px 14px rgba(11,34,57,0.05); }}
+.ps-table th {{ text-align: left; background: {p['INK']}; color: #FFFFFF; font-weight: 600; padding: 11px 14px; font-size: 0.86rem; }}
+.ps-table th.n, .ps-table td.n {{ text-align: right; }}
+.ps-table td {{ color: {p['TEXT']}; padding: 11px 14px; border-bottom: 1px solid {p['SOFTLINE']}; vertical-align: middle; line-height: 1.4; }}
+.ps-table tr:nth-child(even) td {{ background: {p['GREY_SOFT']}; }}
+.ps-table tr:last-child td {{ border-bottom: none; }}
+.ps-table td.strong {{ color: {p['INK']}; font-weight: 700; }}
+.ps-table td.n {{ font-variant-numeric: tabular-nums; white-space: nowrap; }}
+.ps-table .sub {{ display: block; color: {p['MUTED']}; font-size: 0.82rem; font-weight: 400; margin-top: 2px; }}
+.ps-table .rank {{ display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: {p['TEAL_SOFT']};
+                  color: {p['TEAL_TEXT']}; font-weight: 700; font-size: 0.82rem; align-items: center; justify-content: center; }}
+.ps-bar {{ display: flex; align-items: center; gap: 8px; min-width: 140px; }}
+.ps-bar .track {{ flex: 1; height: 8px; border-radius: 4px; background: {p['GREY_SOFT']}; overflow: hidden; }}
+.ps-bar .fill {{ height: 100%; border-radius: 4px; background: {p['TEAL']}; }}
+.ps-bar b {{ min-width: 34px; text-align: right; color: {p['INK']}; font-variant-numeric: tabular-nums; }}
+.ps-tablewrap {{ overflow-x: auto; }}
+
+/* ---- explainer cards */
+.ps-explain {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 6px 0 14px 0; }}
+.ps-explain > div {{ border-radius: 14px; padding: 15px 17px; border-top: 4px solid {p['TEAL']}; background: {p['CARD']};
+                    border-left: 1px solid {p['LINE']}; border-right: 1px solid {p['LINE']}; border-bottom: 1px solid {p['LINE']};
+                    box-shadow: 0 1px 2px rgba(11,34,57,0.04), 0 4px 14px rgba(11,34,57,0.05); }}
+.ps-explain .ic {{ font-size: 1.35rem; }}
+.ps-explain h5 {{ color: {p['INK']}; font-size: 1.02rem; font-weight: 700; margin: 6px 0 6px 0; padding: 0; }}
+.ps-explain p {{ color: {p['TEXT']}; font-size: 0.93rem; line-height: 1.5; margin: 0; }}
+.ps-explain .blue {{ border-top-color: {p['BLUE']}; }} .ps-explain .amber {{ border-top-color: {p['AMBER']}; }}
+.ps-explain .coral {{ border-top-color: {p['CORAL']}; }} .ps-explain .green {{ border-top-color: {p['GREEN']}; }}
+.ps-tip {{ display: flex; gap: 10px; align-items: flex-start; background: {p['BLUE_SOFT']}; border-radius: 12px; padding: 12px 15px;
+          color: {p['INK']}; font-size: 0.94rem; line-height: 1.5; margin: 6px 0 12px 0; }}
+.ps-tip .i {{ flex: none; width: 22px; height: 22px; border-radius: 50%; background: {p['BLUE']}; color: #FFF; font-weight: 700;
+             font-size: 0.8rem; display: flex; align-items: center; justify-content: center; margin-top: 1px; }}
+
+/* ---- AI assistant colour coding */
+[class*="st-key-ans_teal"], [class*="st-key-ans_blue"], [class*="st-key-ans_amber"], [class*="st-key-ans_grey"] {{
+  border-radius: 14px; padding: 12px 16px 6px 16px !important; margin-bottom: 8px; }}
+[class*="st-key-ans_teal"] {{ background: {p['TEAL_SOFT']}; border-left: 5px solid {p['TEAL']}; }}
+[class*="st-key-ans_blue"] {{ background: {p['BLUE_SOFT']}; border-left: 5px solid {p['BLUE']}; }}
+[class*="st-key-ans_amber"] {{ background: {p['AMBER_SOFT']}; border-left: 5px solid {p['AMBER']}; }}
+[class*="st-key-ans_grey"] {{ background: {p['GREY_SOFT']}; border-left: 5px solid {p['MIST']}; }}
+.ps-anshead {{ font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }}
+.ps-anshead.teal {{ color: {p['TEAL_TEXT']}; }} .ps-anshead.blue {{ color: {p['BLUE']}; }}
+.ps-anshead.amber {{ color: {p['AMBER_TEXT']}; }} .ps-anshead.grey {{ color: {p['MUTED']}; }}
+.stMain [data-testid="stChatMessage"] {{ background: transparent; }}
+[class*="st-key-askq"] button {{ background: {p['CARD']} !important; border: 1.5px solid {p['TEAL']} !important;
+  color: {p['TEAL_TEXT']} !important; font-weight: 600; border-radius: 12px !important; text-align: left; }}
+[class*="st-key-askq"] button:hover {{ background: {p['TEAL']} !important; color: #FFFFFF !important; }}
+.ps-userq {{ background: {p['INK']}; color: #FFFFFF; border-radius: 16px 16px 4px 16px; padding: 12px 16px; margin: 14px 0 8px auto;
+            max-width: 80%; width: fit-content; font-weight: 500; }}
+.ps-aitag {{ display: inline-flex; align-items: center; gap: 6px; color: {p['TEAL_TEXT']}; font-weight: 700; font-size: 0.9rem;
+            margin: 4px 0 8px 0; }}
+
+/* ---- call to action and action points */
+[class*="st-key-cta"] {{ background: linear-gradient(135deg, {p['TEAL_SOFT']}, {p['BLUE_SOFT']}); border: 1.5px solid {p['TEAL']};
+  border-radius: 18px; padding: 20px 22px 12px 22px !important; }}
+.ps-ctahead {{ display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }}
+.ps-ctahead .badge {{ background: {p['TEAL']}; color: #FFF; border-radius: 999px; padding: 4px 12px; font-size: 0.78rem; font-weight: 700; }}
+.ps-ctahead h4 {{ color: {p['INK']}; margin: 0; padding: 0; font-size: 1.2rem; font-weight: 700; }}
+.ps-actions {{ display: grid; gap: 10px; margin: 6px 0 12px 0; }}
+.ps-actions > div {{ display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; background: {p['CARD']};
+  border: 1px solid {p['LINE']}; border-radius: 14px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(11,34,57,0.04); }}
+.ps-actions .num {{ width: 30px; height: 30px; border-radius: 50%; background: {p['INK']}; color: #FFF; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }}
+.ps-actions b {{ color: {p['INK']}; display: block; }}
+.ps-actions span.d {{ color: {p['MUTED']}; font-size: 0.9rem; }}
+.stMain [data-testid="stBaseButton-primary"], .stMain [data-testid="stBaseButton-primaryFormSubmit"] {{
+  background: {p['TEAL']} !important; border-color: {p['TEAL']} !important; }}
+.stMain [data-testid="stBaseButton-primary"] *, .stMain [data-testid="stBaseButton-primaryFormSubmit"] * {{ color: #FFFFFF !important; }}
+.stMain [data-testid="stBaseButton-primary"]:hover, .stMain [data-testid="stBaseButton-primaryFormSubmit"]:hover {{ filter: brightness(1.1); }}
+.ps-chip.grey {{ box-shadow: inset 0 0 0 1px {p['LINE']}; background: {p['CARD']} !important; }}
+.msr {{ font-family: 'Material Symbols Rounded'; font-weight: 500; font-style: normal; line-height: 1; letter-spacing: normal;
+  text-transform: none; display: inline-block; white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; vertical-align: -0.2em; }}
+.ps-head .icon .msr {{ font-size: 30px; }}
+.ps-explain .ic .msr {{ font-size: 28px; color: {p['TEAL']}; }}
+.ps-explain .blue .ic .msr {{ color: {p['BLUE']}; }} .ps-explain .amber .ic .msr {{ color: {p['AMBER']}; }}
+.ps-explain .coral .ic .msr {{ color: {p['CORAL']}; }} .ps-explain .green .ic .msr {{ color: {p['GREEN']}; }}
+.ps-anshead .msr, .ps-aitag .msr {{ font-size: 20px; margin-right: 6px; }}
+.ps-hero .kicker .msr {{ font-size: 16px; }}
 .ps-foot {{ color: {p['MUTED']}; font-size: 0.84rem; border-top: 1px solid {p['LINE']}; margin-top: 40px; padding-top: 14px; text-align: center; }}
 </style>
 """
@@ -282,6 +389,11 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 
 def apply_style():
     st.markdown(_css(), unsafe_allow_html=True)
+
+
+def icon(name):
+    """A Material Symbols line icon (same family as the sidebar icons)."""
+    return f'<span class="msr">{html.escape(name)}</span>'
 
 
 def esc(text):
@@ -311,12 +423,12 @@ def sparkline_svg(values, width=1000, height=96):
 def hero(kicker, title, text, spark_values=None, spark_note=""):
     spark = sparkline_svg(spark_values) if spark_values is not None else ""
     note = f'<div class="note">{esc(spark_note)}</div>' if spark_note else '<div style="height:30px"></div>'
-    _html(f'<div class="ps-hero"><div class="kicker">✦ {esc(kicker)}</div><h1>{esc(title)}</h1><p>{esc(text)}</p>{spark}{note}</div>')
+    _html(f'<div class="ps-hero"><div class="kicker">{icon("auto_awesome")}{esc(kicker)}</div><h1>{esc(title)}</h1><p>{esc(text)}</p>{spark}{note}</div>')
 
 
 def page_header(title, text, icon="", ai=False):
     badge = '<span class="ps-ai">AI</span>' if ai else ""
-    ic = f'<div class="icon">{icon}</div><br>' if icon else ""
+    ic = f'<div class="icon"><span class="msr">{esc(icon)}</span></div><br>' if icon else ""
     _html(f'<div class="ps-head">{ic}<h1>{esc(title)}{badge}</h1><p>{esc(text)}</p></div>')
 
 
@@ -466,3 +578,36 @@ def signal_table(rows):
     _html('<div style="overflow-x:auto"><table class="ps-eval ps-stable"><thead><tr><th>Month</th><th>Watching</th><th>Name</th>'
           '<th>Events</th><th>Usual / month</th><th>× usual</th><th>Flagged by</th><th>Class I share</th><th>Strength</th>'
           f'</tr></thead><tbody>{body}</tbody></table></div>')
+
+
+
+# ---------------------------------------------------------------- polish components
+def table(columns, rows, numeric=(), wrap=True):
+    """columns: list of headers; rows: list of lists of HTML-safe cell strings (use esc for text)."""
+    head = "".join(f'<th class="{"n" if i in numeric else ""}">{esc(c)}</th>' for i, c in enumerate(columns))
+    body = "".join("<tr>" + "".join(f'<td class="{"n" if i in numeric else ""}">{c}</td>' for i, c in enumerate(r)) + "</tr>"
+                   for r in rows)
+    _html(f'<div class="ps-tablewrap"><table class="ps-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>')
+
+
+def bar_cell(value, maximum, colour=None):
+    w = 0 if not maximum else max(3, value / maximum * 100)
+    style = f"width:{w:.0f}%" + (f";background:{colour}" if colour else "")
+    return f'<div class="ps-bar"><div class="track"><div class="fill" style="{style}"></div></div><b>{value:,}</b></div>'
+
+
+def explainers(items):
+    """items: list of (icon, title, text, tone) where tone is '', 'blue', 'amber', 'coral' or 'green'."""
+    _html('<div class="ps-explain">' + "".join(
+        f'<div class="{t}"><div class="ic"><span class="msr">{esc(ic)}</span></div><h5>{esc(ti)}</h5><p>{tx}</p></div>' for ic, ti, tx, t in items) + "</div>")
+
+
+def tip(text):
+    _html(f'<div class="ps-tip"><span class="i">i</span><span>{text}</span></div>')
+
+
+def actions(items):
+    """items: list of (title, detail, status, tone)."""
+    _html('<div class="ps-actions">' + "".join(
+        f'<div><span class="num">{i}</span><span><b>{esc(t)}</b><span class="d">{esc(dt)}</span></span>{chip(stt, tn)}</div>'
+        for i, (t, dt, stt, tn) in enumerate(items, 1)) + "</div>")
