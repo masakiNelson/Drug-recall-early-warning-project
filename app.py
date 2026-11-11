@@ -15,6 +15,11 @@ import pharmasignal_core as core
 import ui
 
 st.set_page_config(page_title="PharmaSignal", page_icon="💊", layout="wide", initial_sidebar_state="auto")
+try:
+    _mode = st.context.theme.type or "light"     # follows the viewer's light or dark setting
+except Exception:
+    _mode = "light"
+ui.set_mode(_mode)
 ui.apply_style()
 st.logo(str(core.ROOT / "assets" / "logo.svg"), size="large", icon_image=str(core.ROOT / "assets" / "icon.svg"))
 
@@ -111,10 +116,10 @@ def friendly_error(action, err):
 def overview():
     by_month = EVENTS.dropna(subset=["report_date_dt"]).set_index("report_date_dt").resample("MS").event_id.nunique()
     peak_month, peak_n = by_month.idxmax(), int(by_month.max())
-    ui.hero("PharmaSignal, drug-quality recall intelligence for Kenya",
+    ui.hero("PharmaSignal AI: recall intelligence for medicines procurement in Kenya",
             "Check a supplier's recall record before you award the tender",
-            "Fourteen years of US FDA drug-quality recalls, turned into evidence a procurement team can use: what went "
-            "wrong, which firms and products keep recurring, and which documents to ask a bidder for.",
+            "An AI-powered assistant built on fourteen years of US FDA drug-quality recalls. It sorts recall reasons with "
+            "machine learning, spots unusual surges, and answers your questions with evidence you can check.",
             by_month.values,
             f"Each point is one month of FDA drug-quality recall events, {by_month.index.min():%b %Y} to "
             f"{by_month.index.max():%b %Y}. The amber dot is the busiest month: {peak_month:%B %Y}, {peak_n} events.")
@@ -126,7 +131,17 @@ def overview():
     c1, c2, c3 = st.columns(3)
     c1.page_link(tender_pg, label="Screen tender bidders", icon=":material/fact_check:", width="stretch")
     c2.page_link(signals_pg, label="Check recent recall signals", icon=":material/monitoring:", width="stretch")
-    c3.page_link(ask_pg, label="Ask a question in plain English", icon=":material/forum:", width="stretch")
+    c3.page_link(ask_pg, label="Ask the AI assistant", icon=":material/smart_toy:", width="stretch")
+
+    ui.section("Meet the PharmaSignal AI assistant",
+               "Three kinds of AI work together: a machine-learning classifier, anomaly detectors and a language model.")
+    ui.ai_band("Ask in plain English, get answers you can check",
+               "The assistant looks up the facts with database queries, finds the closest recall records, and asks Claude "
+               "to explain them. Code then checks every number and recall ID before you see the answer. It never "
+               "calls a medicine unsafe or tells you to reject a supplier.",
+               "Has Teva Pharmaceuticals USA had Class I recalls?",
+               "Facts from the data: 158 recall events, 6 of them Class I, each cited by its recall number. "
+               "What this may mean, and the checks to make before award, follow underneath.")
 
     # ---- four facts, always for the whole dataset
     n_ev = EVENTS.event_id.nunique()
@@ -140,9 +155,9 @@ def overview():
                f"{d.provenance['report_date_range'][0][:4]} and {d.provenance['report_date_range'][1][:4]}.")
     ui.findings([
         (f"1 in {round(1 / share_i)}", "recall events is Class I: a reasonable chance of serious harm or death.", "coral"),
-        (f"{cats.iloc[:3].sum() * 100:.0f}%", f"of recalls come from three failure types: {top3[0]}, {top3[1]} and {top3[2]}.", ""),
+        (f"{cats.iloc[:3].sum() * 100:.0f}%", f"of recalls come from three failure types: {top3[0]}, {top3[1]} and {top3[2]}.", "teal"),
         (f"{forms.iloc[0] * 100:.0f}%", f"involve {forms.index[0].lower()} products such as tablets and capsules; "
-                                        f"{forms.index[1].lower()} products are next at {forms.iloc[1] * 100:.0f}%.", "ink"),
+                                        f"{forms.index[1].lower()} products are next at {forms.iloc[1] * 100:.0f}%.", "blue"),
         (f"{(per_firm > 1).mean() * 100:.0f}%", "of recalling firms recalled more than once. Repeat recallers are where "
                                                 "a buyer's questions should start.", "amber")])
 
@@ -176,7 +191,7 @@ def overview():
     with b:
         g = ev.product_group.value_counts().rename_axis("dosage form").reset_index(name="events")
         st.subheader(f"{g['dosage form'].iloc[0]} and {g['dosage form'].iloc[1].lower()} products lead")
-        ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.INK, height=340)
+        ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.BLUE, height=340)
 
     ui.section("Which firms recall most often?",
                "The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
@@ -208,7 +223,7 @@ def overview():
 
 # ============================================================ Signals
 def signals():
-    ui.page_header("Recall signals",
+    ui.page_header("Recall signals", icon="📡", text=
                    "A signal means a month had clearly more recall events than usual for a failure type, dosage form or firm. "
                    "It is a prompt to look closer, not a confirmed quality failure.")
     ui.steps(["Choose the period and what to watch", "Read why each month was flagged",
@@ -314,7 +329,7 @@ def signals():
                           alt.Tooltip("hist_mean:Q", title="Usual per month", format=".1f")])
              + base_c.mark_line(strokeDash=[5, 4], color=ui.SLATE, strokeWidth=1.4).encode(y="hist_mean:Q")
              + base_c.transform_filter("datum.signal").mark_point(color=ui.AMBER, size=90, filled=True, opacity=1,
-                                                                  stroke=ui.INK, strokeWidth=1).encode(y="n_events:Q"), 330)
+                                                                  stroke=ui.P["CARD"], strokeWidth=1.5).encode(y="n_events:Q"), 330)
     st.caption("Teal line: recall events each month. Dashed line: the usual level (average of the previous 12 months). "
                "Amber dots: months that signal at the settings above.")
 
@@ -374,7 +389,7 @@ def bidder_status(row):
 
 
 def tender():
-    ui.page_header("Tender screening",
+    ui.page_header("Tender screening", icon="📋", text=
                    "See each bidder's FDA recall evidence side by side, with a checklist of documents to request before award.")
     ui.steps(["Add the bidders: type them, upload a list, or use the example", "Enter the product being tendered",
               "Screen, then download each bidder's evidence brief"])
@@ -493,7 +508,7 @@ def clean_title(title):
 
 
 def assistant():
-    ui.page_header("Ask PharmaSignal",
+    ui.page_header("PharmaSignal AI assistant", ai=True, icon="🤖", text=
                    "Ask in plain English about firms, products, failure types or signals. Answers use only the recall data, "
                    "cite recall numbers, and are checked by code before you see them.")
     ui.steps(["Pick an example or type your own question", "Read the answer and the recall numbers it cites",
@@ -570,11 +585,6 @@ def assistant():
 
 
 # ============================================================ About
-ROLES = {"Cindy Murogo": "Project lead and data pipeline",
-         "Mananda Kirungu Salim": "Exploratory analysis and data quality",
-         "Daniel Kimasar": "Classification, model evaluation and business analytics",
-         "Varlerly Maina": "Anomaly detection",
-         "Nelson Masaki": "App, dashboard and documentation"}
 TERMS = {"Recall event": "One recall decision by a firm. It can cover several products or strengths.",
          "Class I, II, III": "FDA severity levels. Class I is the most serious: serious harm or death is reasonably possible.",
          "Recalling firm": "The company that announced the recall; it may not be the manufacturer.",
@@ -584,7 +594,7 @@ TERMS = {"Recall event": "One recall decision by a firm. It can cover several pr
 
 
 def about():
-    ui.page_header("About PharmaSignal", "What the tool does, how well it works, what it cannot tell you, and who built it.")
+    ui.page_header("About PharmaSignal", icon="ℹ️", text="What the tool does, how well it works, what it cannot tell you, and who built it.")
     ui.section("How it works")
     ui.steps([f"Take a fixed snapshot of {d.provenance['records']:,} FDA recall records",
               "Clean firm names and assign each product a dosage form",
@@ -631,7 +641,7 @@ def about():
                 "writes the assistant's answers from the evidence shown.")
 
     ui.section("The team")
-    st.dataframe(pd.DataFrame({"Member": list(ROLES), "Role": list(ROLES.values())}), hide_index=True, width="stretch")
+    ui.team_cards(ui.TEAM)
 
     ui.section("Tell us what you think")
     with st.form("feedback", clear_on_submit=True):
@@ -657,19 +667,19 @@ def about():
 home_pg = st.Page(overview, title="Overview", icon=":material/dashboard:", default=True)
 signals_pg = st.Page(signals, title="Recall signals", icon=":material/monitoring:", url_path="signals")
 tender_pg = st.Page(tender, title="Tender screening", icon=":material/fact_check:", url_path="tender")
-ask_pg = st.Page(assistant, title="Ask PharmaSignal", icon=":material/forum:", url_path="ask")
+ask_pg = st.Page(assistant, title="AI assistant", icon=":material/smart_toy:", url_path="ask")
 about_pg = st.Page(about, title="About and methods", icon=":material/info:", url_path="about")
 pg = st.navigation({"Explore": [home_pg, signals_pg], "Decide": [tender_pg, ask_pg], "Project": [about_pg]})
 
 with st.sidebar:
     ai_on = llm is not None
     st.markdown(f"""<div class="ps-side">
-<p>Drug-quality recall intelligence for medicines procurement in Kenya.</p>
+<p>AI-powered drug-quality recall intelligence for medicines procurement in Kenya.</p>
 <p><b>Data</b><br>openFDA snapshot, {d.provenance['effective_snapshot_date']}<br>
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
-<p><b>Assistant</b><br><span class="dot" style="background:{ui.TEAL_LIGHT if ai_on else ui.AMBER}"></span>
+<p><b>AI assistant</b><br><span class="dot" style="background:{ui.TEAL_LIGHT if ai_on else ui.AMBER}"></span>
 {'Claude connected' if ai_on else 'Evidence only (no API key)'}</p>
-<p><b>Team</b><br>{'<br>'.join(ui.TEAM)}</p>
-<p>MSc Pharmaceutical Sciences capstone</p></div>""", unsafe_allow_html=True)
+<p><b>Team</b><br>{'<br>'.join(f"{n}<br><span class='role'>{r}</span>" for n, r in ui.TEAM.items())}</p>
+<p><b>Capstone group project</b></p></div>""", unsafe_allow_html=True)
 
 pg.run()
