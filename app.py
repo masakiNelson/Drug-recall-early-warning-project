@@ -49,8 +49,9 @@ def get_data():
 
 
 @st.cache_resource
-def get_llm():
-    return core.make_llm(api_key=ANTHROPIC_API_KEY)
+def get_llm(api_key):
+    # cached per key, so adding or changing the key in Secrets takes effect without a stale "no key" result
+    return core.make_llm(api_key=api_key)
 
 
 @st.cache_resource
@@ -73,7 +74,7 @@ def count_llm_use():
 
 
 d = get_data()
-llm = get_llm()
+llm = get_llm(ANTHROPIC_API_KEY)
 EVENTS = d.recalls.drop_duplicates("event_id")
 CATEGORY_NAMES = {"IMPURITIES": "Impurities", "CONTAMINATION_STERILITY": "Contamination or sterility",
                   "CGMP_DEVIATION": "GMP deviation", "LABELING_PACKAGING": "Labelling or packaging",
@@ -539,8 +540,16 @@ def assistant():
                             f"{ui.esc(res['status'])}", "warn")
             else:
                 if res["status"].startswith("Claude call failed"):
-                    ui.note("Claude could not be reached just now, so here is the evidence on its own. Try again in a "
-                            "minute.", "limit")
+                    reason = re.search(r"\((\w+)\)", res["status"])
+                    reason = reason.group(1) if reason else "unknown error"
+                    hint = {"AuthenticationError": "The API key was rejected. Check it in the app's Secrets.",
+                            "PermissionDeniedError": "The API key has no access to this model.",
+                            "NotFoundError": "The model name is not available. Remove LLM_MODEL from Secrets.",
+                            "RateLimitError": "Too many requests at once. Wait a minute and try again.",
+                            "BadRequestError": "Usually means the account has no credit. Check Billing in the Anthropic Console."
+                            }.get(reason, "Try again in a minute.")
+                    ui.note(f"<b>Claude could not answer ({ui.esc(reason)}).</b> {ui.esc(hint)} "
+                            "Here is the evidence on its own.", "limit")
                 st.markdown("**Here is what the data shows**")
                 for title, tab in res["facts"]:
                     st.caption(clean_title(title))
