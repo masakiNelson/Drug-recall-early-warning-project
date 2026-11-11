@@ -1,7 +1,7 @@
 """Shared look and feel for the PharmaSignal app.
 
-One palette, one chart theme and a small set of building blocks (hero, findings, steps, KPI tiles, status chips,
-callouts) so every page looks and reads the same way.
+Two matching palettes (light and dark), one chart theme and a small set of building blocks (hero, findings, steps,
+KPI tiles, status chips, cards, callouts) so every page looks and reads the same way in either mode.
 """
 import html
 
@@ -9,178 +9,248 @@ import altair as alt
 import numpy as np
 import streamlit as st
 
-# ---------------------------------------------------------------- palette
-INK = "#102A43"          # navy: sidebar, headings, hero
-INK_2 = "#1B3A57"
-TEXT = "#243B53"
-SLATE = "#627D98"        # secondary text
-MIST = "#A8BBCC"         # de-emphasised data, Class III
-LINE = "#DCE4EA"
-PAPER = "#F7F9FA"
-TEAL = "#0F766E"         # primary: actions and the data that matters
-TEAL_SOFT = "#E6F2F0"
-TEAL_LIGHT = "#7DD3C0"
-AMBER = "#D9912B"        # signals
-AMBER_SOFT = "#FBF3E4"
-CORAL = "#C2462F"        # Class I only
-CORAL_SOFT = "#FBEAE6"
-
-CLASS_COLOURS = alt.Scale(domain=["Class I", "Class II", "Class III"], range=[CORAL, AMBER, MIST])
+# ---------------------------------------------------------------- palettes
+PALETTES = {
+    "light": dict(
+        BG="#F3F6F9", CARD="#FFFFFF", INK="#0B2239", TEXT="#1B3550", MUTED="#3D5874", LINE="#D2DDE6", SOFTLINE="#E6EDF2",
+        TEAL="#0F766E", TEAL_SOFT="#DDF1EC", TEAL_TEXT="#0B5E57", TEAL_LIGHT="#5FD4BD",
+        AMBER="#DB8E1C", AMBER_SOFT="#FCF0DA", AMBER_TEXT="#8A5300",
+        CORAL="#C0412A", CORAL_SOFT="#FBE6E1", CORAL_TEXT="#9E2F1B",
+        BLUE="#1F5F99", BLUE_SOFT="#E3EEF8", MIST="#A3B7C9", GREY_SOFT="#E9EFF4",
+        HERO="#0B2239", HERO_GLOW="rgba(45,191,169,0.28)", GRID="#E3EAF0"),
+    "dark": dict(
+        BG="#0B1826", CARD="#12253A", INK="#F2F7FB", TEXT="#DCE6EF", MUTED="#AFC1D1", LINE="#27425D", SOFTLINE="#1D3550",
+        TEAL="#2EC4AE", TEAL_SOFT="#103B3A", TEAL_TEXT="#7BE3D1", TEAL_LIGHT="#7BE3D1",
+        AMBER="#F2AE45", AMBER_SOFT="#3A2C12", AMBER_TEXT="#F7C979",
+        CORAL="#F2785F", CORAL_SOFT="#3D1D17", CORAL_TEXT="#F8A493",
+        BLUE="#7FB4E8", BLUE_SOFT="#16304A", MIST="#4E6A85", GREY_SOFT="#1A3048",
+        HERO="#102F4B", HERO_GLOW="rgba(46,196,174,0.30)", GRID="#1E3650"),
+}
+MODE = "light"
+P = PALETTES[MODE]
+TEAL = INK = AMBER = CORAL = BLUE = MIST = MUTED = SLATE = TEAL_LIGHT = None
+CLASS_COLOURS = None
 CLASS_TEXT = {"Class I": "Serious harm or death is reasonably possible.",
               "Class II": "Temporary or reversible harm is possible; serious harm is unlikely.",
-              "Class III": "Unlikely to cause harm, but breaks the rules (e.g. a labelling error)."}
+              "Class III": "Unlikely to cause harm, but breaks the rules, such as a labelling error."}
 
-TEAM = ["Cindy Murogo", "Daniel Kimasar", "Mananda Kirungu Salim", "Nelson Masaki", "Varlerly Maina"]
+TEAM = {"Cindy Murogo": "Project lead and data pipeline",
+        "Daniel Kimasar": "Classification, evaluation and business analytics",
+        "Mananda Kirungu Salim": "Exploratory analysis and data quality",
+        "Nelson Masaki": "App, dashboard and documentation",
+        "Varlerly Maina": "Anomaly detection"}
 
 
-# ---------------------------------------------------------------- chart theme
+def set_mode(mode):
+    """Switch every colour the app uses to the light or dark palette."""
+    global MODE, P, TEAL, INK, AMBER, CORAL, BLUE, MIST, MUTED, SLATE, TEAL_LIGHT, CLASS_COLOURS
+    MODE = mode if mode in PALETTES else "light"
+    P = PALETTES[MODE]
+    TEAL, INK, AMBER, CORAL, BLUE = P["TEAL"], P["INK"], P["AMBER"], P["CORAL"], P["BLUE"]
+    MIST, MUTED, SLATE, TEAL_LIGHT = P["MIST"], P["MUTED"], P["MUTED"], P["TEAL_LIGHT"]
+    CLASS_COLOURS = alt.Scale(domain=["Class I", "Class II", "Class III"], range=[P["CORAL"], P["AMBER"], P["MIST"]])
+
+
+set_mode("light")
+
+
+# ---------------------------------------------------------------- chart theme (reads the current palette)
 @alt.theme.register("pharmasignal", enable=True)
 def _theme():
-    font = "IBM Plex Sans, Segoe UI, Arial, sans-serif"
     return alt.theme.ThemeConfig({"config": {
-        "font": font, "background": "transparent", "view": {"stroke": None},
-        "axis": {"labelColor": SLATE, "titleColor": SLATE, "labelFontSize": 12, "titleFontSize": 12,
-                 "titleFontWeight": 500, "gridColor": "#E9EEF2", "domainColor": LINE, "tickColor": LINE},
+        "font": "IBM Plex Sans, Segoe UI, Arial, sans-serif", "background": "transparent", "view": {"stroke": None},
+        "axis": {"labelColor": P["MUTED"], "titleColor": P["MUTED"], "labelFontSize": 12.5, "titleFontSize": 12.5,
+                 "titleFontWeight": 500, "gridColor": P["GRID"], "domainColor": P["LINE"], "tickColor": P["LINE"]},
         "axisY": {"domain": False, "ticks": False},
-        "legend": {"labelColor": TEXT, "titleColor": SLATE, "labelFontSize": 12, "titleFontSize": 12,
-                   "orient": "top", "direction": "horizontal", "symbolType": "square"},
-        "bar": {"color": TEAL}, "line": {"color": TEAL},
+        "legend": {"labelColor": P["TEXT"], "titleColor": P["MUTED"], "labelFontSize": 12.5, "orient": "top",
+                   "direction": "horizontal", "symbolType": "square"},
+        "text": {"color": P["TEXT"]}, "bar": {"color": P["TEAL"]}, "line": {"color": P["TEAL"]},
     }})
 
 
 def chart(c, height=320):
+    alt.theme.enable("pharmasignal")
     st.altair_chart(c.properties(height=height), width="stretch", theme=None)
 
 
-def ranked_bars(df, value, label, highlight=2, colour=TEAL, height=320):
+def ranked_bars(df, value, label, highlight=2, colour=None, height=320):
     """Horizontal bars, largest first; the top `highlight` bars in colour, the rest muted, value printed at the end."""
+    colour = colour or P["TEAL"]
     df = df.sort_values(value, ascending=False).reset_index(drop=True)
     df["_rank"] = df.index
-    base = alt.Chart(df).encode(y=alt.Y(f"{label}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=260, labelFontSize=12.5, labelPadding=8)),
-                                x=alt.X(f"{value}:Q", title=None, axis=None))
-    bars = base.mark_bar(cornerRadiusEnd=4, height={"band": 0.72}).encode(
-        color=alt.condition(f"datum._rank < {highlight}", alt.value(colour), alt.value(MIST)),
+    base = alt.Chart(df).encode(
+        y=alt.Y(f"{label}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=260, labelFontSize=13, labelPadding=8,
+                                                                   labelColor=P["TEXT"])),
+        x=alt.X(f"{value}:Q", title=None, axis=None))
+    bars = base.mark_bar(cornerRadiusEnd=5, height={"band": 0.72}).encode(
+        color=alt.condition(f"datum._rank < {highlight}", alt.value(colour), alt.value(P["MIST"])),
         tooltip=[alt.Tooltip(f"{label}:N"), alt.Tooltip(f"{value}:Q", format=",")])
-    labels = base.mark_text(align="left", dx=5, fontSize=12, color=TEXT).encode(text=alt.Text(f"{value}:Q", format=","))
+    labels = base.mark_text(align="left", dx=6, fontSize=12.5, fontWeight=500, color=P["TEXT"]).encode(
+        text=alt.Text(f"{value}:Q", format=","))
     chart(bars + labels, height)
 
 
 # ---------------------------------------------------------------- CSS
-CSS = f"""
+def _css():
+    p = P
+    return f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+:root {{ --ps-ink:{p['INK']}; --ps-text:{p['TEXT']}; --ps-muted:{p['MUTED']}; --ps-card:{p['CARD']}; --ps-line:{p['LINE']};
+        --ps-teal:{p['TEAL']}; --ps-teal-soft:{p['TEAL_SOFT']}; --ps-teal-text:{p['TEAL_TEXT']}; }}
 html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
   font-family: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif; }}
-.block-container {{ padding-top: 2rem; padding-bottom: 3rem; max-width: 1160px; }}
-.stMain h1, .stMain h2, .stMain h3 {{ color: {INK}; letter-spacing: -0.01em; }}
-.stMain h2 {{ font-size: 1.5rem !important; font-weight: 600 !important; margin: 2.2rem 0 0.2rem 0 !important; }}
+.stApp {{ background: {p['BG']}; }}
+.block-container {{ padding-top: 1.8rem; padding-bottom: 3rem; max-width: 1160px; }}
+.stMain p, .stMain li, .stMain label, .stMain [data-testid="stMarkdownContainer"] {{ color: {p['TEXT']}; }}
+.stMain [data-testid="stCaptionContainer"], .stMain [data-testid="stCaptionContainer"] p {{ color: {p['MUTED']} !important; }}
+.stMain [data-testid="stWidgetLabel"] p {{ color: {p['INK']} !important; font-weight: 500; }}
+
+/* headings: section titles centred with an accent bar */
+.stMain h1, .stMain h2, .stMain h3 {{ color: {p['INK']} !important; letter-spacing: -0.01em; }}
+.stMain h2 {{ font-size: 1.65rem !important; font-weight: 700 !important; text-align: center;
+             margin: 2.6rem 0 0.3rem 0 !important; padding-bottom: 0.9rem !important; position: relative; }}
+.stMain h2::after {{ content: ""; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+                    width: 56px; height: 4px; border-radius: 2px; background: {p['TEAL']}; }}
 .stMain h3 {{ font-size: 1.12rem !important; font-weight: 600 !important; margin-top: 0.6rem !important; }}
-.ps-sub {{ color: {SLATE}; font-size: 0.97rem; margin: 0 0 14px 0; max-width: 75ch; line-height: 1.5; }}
+.ps-subwrap {{ width: 100%; text-align: center; }}
+.stMain .ps-sub {{ color: {p['MUTED']} !important; font-size: 1.03rem; margin: 6px auto 20px auto !important; max-width: 68ch;
+          line-height: 1.55; text-align: center; display: inline-block; }}
 
 /* hero */
-.ps-hero {{ background: {INK}; border-radius: 16px; padding: 34px 38px 0 38px; margin-bottom: 20px; overflow: hidden; }}
-.ps-hero .kicker {{ color: {TEAL_LIGHT}; font-size: 0.95rem; font-weight: 500; margin-bottom: 10px; }}
-.ps-hero h1 {{ color: #FFFFFF; font-size: clamp(1.55rem, 3.6vw, 2.35rem); font-weight: 600; line-height: 1.15;
-              margin: 0 0 10px 0; padding: 0; max-width: 24ch; }}
-.ps-hero p {{ color: #BCCCDC; font-size: 1.05rem; margin: 0; max-width: 60ch; line-height: 1.55; }}
-.ps-hero .ps-spark {{ display: block; width: calc(100% + 76px); margin: 22px -38px 0 -38px; height: 96px; }}
-.ps-hero .note {{ color: #829AB1; font-size: 0.8rem; padding: 8px 0 14px 0; }}
+.ps-hero {{ background: radial-gradient(120% 140% at 50% 0%, {p['HERO_GLOW']} 0%, rgba(0,0,0,0) 55%), {p['HERO']};
+           border-radius: 20px; padding: 40px 40px 0 40px; margin-bottom: 22px; overflow: hidden; text-align: center; }}
+.ps-hero .kicker {{ display: inline-flex; align-items: center; gap: 8px; background: rgba(95,212,189,0.14);
+                   color: #8EE6D5; border: 1px solid rgba(95,212,189,0.35); border-radius: 999px; padding: 5px 14px;
+                   font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; }}
+.ps-hero h1 {{ color: #FFFFFF !important; font-size: clamp(1.7rem, 3.8vw, 2.6rem); font-weight: 700; line-height: 1.15;
+              margin: 0 auto 12px auto; padding: 0; max-width: 22ch; }}
+.ps-hero p {{ color: #D3E0EA; font-size: 1.08rem; margin: 0 auto; max-width: 60ch; line-height: 1.6; }}
+.ps-hero .ps-spark {{ display: block; width: calc(100% + 80px); margin: 26px -40px 0 -40px; height: 96px; }}
+.ps-hero .note {{ color: #A9BDCF; font-size: 0.82rem; padding: 9px 0 15px 0; }}
 
-/* inner page header */
-.ps-head {{ border-bottom: 1px solid {LINE}; padding-bottom: 14px; margin-bottom: 18px; }}
-.ps-head h1 {{ font-size: 2rem; font-weight: 600; margin: 0 0 4px 0; padding: 0; color: {INK}; }}
-.ps-head p {{ color: {SLATE}; margin: 0; font-size: 1.02rem; max-width: 70ch; line-height: 1.5; }}
+/* inner page header, centred */
+.ps-head {{ text-align: center; padding: 8px 0 22px 0; margin-bottom: 20px; border-bottom: 1px solid {p['LINE']}; }}
+.ps-head .icon {{ width: 54px; height: 54px; border-radius: 16px; background: {p['TEAL_SOFT']}; color: {p['TEAL_TEXT']};
+                 display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 10px; }}
+.ps-head h1 {{ font-size: 2.2rem !important; font-weight: 700; margin: 0 0 6px 0; padding: 0; color: {p['INK']} !important; }}
+.ps-head p {{ color: {p['MUTED']}; margin: 0 auto; font-size: 1.05rem; max-width: 64ch; line-height: 1.55; }}
+.ps-ai {{ display: inline-block; background: {p['TEAL']}; color: #FFFFFF; font-size: 0.72rem; font-weight: 700;
+         border-radius: 6px; padding: 2px 7px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.02em; }}
 
-/* findings: the four things to remember */
+/* findings */
 .ps-find {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 6px 0 4px 0; }}
-.ps-find > div {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 12px; padding: 18px 18px 16px 18px; }}
-.ps-find .n {{ font-size: 2.1rem; font-weight: 600; line-height: 1; color: {TEAL}; }}
-.ps-find .n.coral {{ color: {CORAL}; }} .ps-find .n.amber {{ color: {AMBER}; }} .ps-find .n.ink {{ color: {INK}; }}
-.ps-find .t {{ color: {TEXT}; font-size: 0.97rem; line-height: 1.45; margin-top: 10px; }}
+.ps-find > div {{ border-radius: 16px; padding: 20px 20px 18px 20px; border: 1px solid transparent; }}
+.ps-find .n {{ font-size: 2.3rem; font-weight: 700; line-height: 1; }}
+.ps-find .t {{ font-size: 0.98rem; line-height: 1.5; margin-top: 12px; color: {p['TEXT']}; }}
+.ps-find .coral {{ background: {p['CORAL_SOFT']}; }} .ps-find .coral .n {{ color: {p['CORAL_TEXT']}; }}
+.ps-find .teal {{ background: {p['TEAL_SOFT']}; }} .ps-find .teal .n {{ color: {p['TEAL_TEXT']}; }}
+.ps-find .blue {{ background: {p['BLUE_SOFT']}; }} .ps-find .blue .n {{ color: {p['BLUE']}; }}
+.ps-find .amber {{ background: {p['AMBER_SOFT']}; }} .ps-find .amber .n {{ color: {p['AMBER_TEXT']}; }}
 
 /* KPI tiles */
-.ps-kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 6px 0 10px 0; }}
-.ps-kpi {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 12px; padding: 14px 16px; }}
-.ps-kpi .v {{ font-size: 1.7rem; font-weight: 600; color: {INK}; line-height: 1.1; }}
-.ps-kpi .l {{ font-size: 0.88rem; color: {SLATE}; margin-top: 5px; line-height: 1.35; }}
-.ps-kpi.coral {{ box-shadow: inset 4px 0 0 {CORAL}; }} .ps-kpi.amber {{ box-shadow: inset 4px 0 0 {AMBER}; }}
-.ps-kpi.teal {{ box-shadow: inset 4px 0 0 {TEAL}; }}
+.ps-kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 6px 0 12px 0; }}
+.ps-kpi {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 14px; padding: 15px 17px;
+          border-top: 4px solid {p['LINE']}; }}
+.ps-kpi .v {{ font-size: 1.75rem; font-weight: 700; color: {p['INK']}; line-height: 1.1; }}
+.ps-kpi .l {{ font-size: 0.9rem; color: {p['MUTED']}; margin-top: 6px; line-height: 1.4; }}
+.ps-kpi.coral {{ border-top-color: {p['CORAL']}; }} .ps-kpi.amber {{ border-top-color: {p['AMBER']}; }}
+.ps-kpi.teal {{ border-top-color: {p['TEAL']}; }} .ps-kpi.blue {{ border-top-color: {p['BLUE']}; }}
 
 /* who / job / decision */
-.ps-who {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); background: {TEAL_SOFT};
-          border-radius: 12px; margin: 0 0 10px 0; }}
-.ps-who > div {{ padding: 16px 20px; }}
-.ps-who b {{ display: block; color: {TEAL}; font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }}
-.ps-who span {{ color: {INK}; font-size: 1rem; line-height: 1.45; }}
+.ps-who {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 0 0 8px 0; }}
+.ps-who > div {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 14px; padding: 16px 18px; text-align: center; }}
+.ps-who b {{ display: block; color: {p['TEAL_TEXT']}; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }}
+.ps-who span {{ color: {p['INK']}; font-size: 1rem; line-height: 1.5; }}
 
-/* how-to steps (a real sequence) */
-.ps-steps {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 0 0 18px 0; }}
-.ps-steps > div {{ display: flex; gap: 10px; align-items: flex-start; color: {TEXT}; font-size: 0.95rem; line-height: 1.4; }}
-.ps-steps .k {{ flex: none; width: 26px; height: 26px; border-radius: 50%; background: {INK}; color: #FFF;
-               font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; }}
+/* AI assistant feature band */
+.ps-aiband {{ display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; background: {p['CARD']}; border: 1px solid {p['LINE']};
+             border-radius: 18px; padding: 22px 24px; align-items: center; }}
+.ps-aiband h4 {{ color: {p['INK']}; font-size: 1.2rem; font-weight: 700; margin: 0 0 8px 0; padding: 0; }}
+.ps-aiband p {{ color: {p['TEXT']}; margin: 0 0 6px 0; line-height: 1.55; }}
+.ps-aiband .q {{ background: {p['TEAL_SOFT']}; color: {p['INK']}; border-radius: 14px 14px 14px 4px; padding: 12px 14px;
+                font-size: 0.95rem; margin-bottom: 8px; }}
+.ps-aiband .a {{ background: {p['GREY_SOFT']}; color: {p['TEXT']}; border-radius: 14px 14px 4px 14px; padding: 12px 14px;
+                font-size: 0.93rem; line-height: 1.5; }}
+@media (max-width: 760px) {{ .ps-aiband {{ grid-template-columns: 1fr; }} }}
+
+/* how-to steps */
+.ps-steps {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 0 0 22px 0; }}
+.ps-steps > div {{ display: flex; gap: 12px; align-items: flex-start; background: {p['CARD']}; border: 1px solid {p['LINE']};
+                  border-radius: 14px; padding: 13px 15px; color: {p['TEXT']}; font-size: 0.96rem; line-height: 1.45; }}
+.ps-steps .k {{ flex: none; width: 28px; height: 28px; border-radius: 50%; background: {p['TEAL']}; color: #FFF;
+               font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }}
 
 /* recall class legend */
-.ps-classes {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 4px 0 12px 0; }}
-.ps-classes > div {{ border-radius: 10px; padding: 10px 14px; font-size: 0.9rem; line-height: 1.4; color: {TEXT}; background: #FFFFFF;
-                    border: 1px solid {LINE}; }}
-.ps-classes b {{ display: inline-block; border-radius: 6px; padding: 1px 8px; margin-right: 6px; font-weight: 600; font-size: 0.82rem; }}
+.ps-classes {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 4px 0 14px 0; }}
+.ps-classes > div {{ border-radius: 12px; padding: 11px 15px; font-size: 0.93rem; line-height: 1.45; color: {p['TEXT']};
+                    background: {p['CARD']}; border: 1px solid {p['LINE']}; }}
+.ps-classes b {{ display: inline-block; border-radius: 6px; padding: 1px 9px; margin-right: 7px; font-weight: 700; font-size: 0.84rem; }}
 
-/* status chips */
-.ps-chip {{ display: inline-block; border-radius: 999px; padding: 3px 11px; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }}
-.ps-chip.coral {{ background: {CORAL_SOFT}; color: {CORAL}; }} .ps-chip.amber {{ background: {AMBER_SOFT}; color: #9A5B07; }}
-.ps-chip.teal {{ background: {TEAL_SOFT}; color: {TEAL}; }} .ps-chip.grey {{ background: #EEF2F6; color: {SLATE}; }}
+/* chips */
+.ps-chip {{ display: inline-block; border-radius: 999px; padding: 4px 12px; font-size: 0.84rem; font-weight: 700; white-space: nowrap; }}
+.ps-chip.coral {{ background: {p['CORAL_SOFT']}; color: {p['CORAL_TEXT']}; }}
+.ps-chip.amber {{ background: {p['AMBER_SOFT']}; color: {p['AMBER_TEXT']}; }}
+.ps-chip.teal {{ background: {p['TEAL_SOFT']}; color: {p['TEAL_TEXT']}; }}
+.ps-chip.grey {{ background: {p['GREY_SOFT']}; color: {p['MUTED']}; }}
 
-/* bidder result cards */
-.ps-bid {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 12px; padding: 16px 18px; margin: 0 0 4px 0; }}
-.ps-bid .top {{ display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }}
-.ps-bid .name {{ font-size: 1.08rem; font-weight: 600; color: {INK}; }}
-.ps-bid .match {{ color: {SLATE}; font-size: 0.85rem; margin-top: 2px; }}
-.ps-bid .flags {{ margin-top: 8px; font-size: 0.9rem; color: {TEXT}; }}
-.ps-bid .nums {{ display: flex; gap: 26px; flex-wrap: wrap; margin: 12px 0 8px 0; }}
-.ps-bid .nums div {{ font-size: 0.82rem; color: {SLATE}; }}
-.ps-bid .nums b {{ display: block; font-size: 1.3rem; color: {INK}; font-weight: 600; }}
-.ps-bid .next {{ font-size: 0.93rem; color: {TEXT}; border-top: 1px solid #EEF2F6; padding-top: 9px; }}
-
-/* signal cards */
+/* bidder and signal cards */
+.ps-bid, .ps-sig {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 16px; padding: 17px 19px; }}
+.ps-bid {{ margin: 0 0 4px 0; border-left-width: 5px; }}
+.ps-bid.coral {{ border-left-color: {p['CORAL']}; }} .ps-bid.amber {{ border-left-color: {p['AMBER']}; }}
+.ps-bid.teal {{ border-left-color: {p['TEAL']}; }} .ps-bid.grey {{ border-left-color: {p['MIST']}; }}
+.ps-bid .top, .ps-sig .top {{ display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }}
+.ps-bid .name, .ps-sig .name {{ font-size: 1.1rem; font-weight: 700; color: {p['INK']}; }}
+.ps-bid .match, .ps-sig .meta {{ color: {p['MUTED']}; font-size: 0.88rem; margin-top: 2px; }}
+.ps-bid .flags {{ margin-top: 9px; font-size: 0.93rem; color: {p['TEXT']}; }}
+.ps-bid .nums {{ display: flex; gap: 28px; flex-wrap: wrap; margin: 13px 0 9px 0; }}
+.ps-bid .nums div {{ font-size: 0.85rem; color: {p['MUTED']}; }}
+.ps-bid .nums b {{ display: block; font-size: 1.35rem; color: {p['INK']}; font-weight: 700; }}
+.ps-bid .next {{ font-size: 0.95rem; color: {p['TEXT']}; border-top: 1px solid {p['SOFTLINE']}; padding-top: 10px; }}
 .ps-sigs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin: 4px 0 10px 0; }}
-.ps-sig {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 12px; padding: 14px 16px; }}
-.ps-sig .top {{ display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }}
-.ps-sig .name {{ font-weight: 600; color: {INK}; font-size: 1.02rem; }}
-.ps-sig .meta {{ color: {SLATE}; font-size: 0.84rem; margin-top: 1px; }}
-.ps-sig .body {{ color: {TEXT}; font-size: 0.93rem; line-height: 1.45; margin-top: 8px; }}
-.ps-sig .bar {{ height: 6px; border-radius: 3px; background: #EEF2F6; margin-top: 10px; overflow: hidden; }}
-.ps-sig .bar span {{ display: block; height: 100%; background: {AMBER}; border-radius: 3px; }}
+.ps-sig .body {{ color: {p['TEXT']}; font-size: 0.95rem; line-height: 1.5; margin-top: 9px; }}
+.ps-sig .bar {{ height: 6px; border-radius: 3px; background: {p['GREY_SOFT']}; margin-top: 11px; overflow: hidden; }}
+.ps-sig .bar span {{ display: block; height: 100%; background: {p['AMBER']}; border-radius: 3px; }}
 
-/* evidence cards in the assistant */
+/* evidence cards */
 .ps-evs {{ display: grid; gap: 8px; margin: 4px 0 6px 0; }}
-.ps-ev {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 10px; padding: 10px 14px; font-size: 0.9rem;
-         line-height: 1.45; color: {TEXT}; }}
-.ps-ev code {{ background: {TEAL_SOFT}; color: {TEAL}; border-radius: 6px; padding: 1px 7px; font-size: 0.8rem; margin-right: 6px; }}
+.ps-ev {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 12px; padding: 11px 15px; font-size: 0.93rem;
+         line-height: 1.5; color: {p['TEXT']}; }}
+.ps-ev code {{ background: {p['TEAL_SOFT']}; color: {p['TEAL_TEXT']}; border-radius: 6px; padding: 1px 7px; font-size: 0.8rem; margin-right: 6px; }}
+
+/* team */
+.ps-team {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }}
+.ps-team > div {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 16px; padding: 18px; text-align: center; }}
+.ps-team .av {{ width: 52px; height: 52px; border-radius: 50%; background: {p['TEAL_SOFT']}; color: {p['TEAL_TEXT']};
+               display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.05rem; margin-bottom: 10px; }}
+.ps-team .nm {{ color: {p['INK']}; font-weight: 700; font-size: 1rem; }}
+.ps-team .rl {{ color: {p['MUTED']}; font-size: 0.9rem; margin-top: 4px; line-height: 1.4; }}
 
 /* callouts */
-.ps-note {{ border-radius: 10px; padding: 12px 16px; margin: 8px 0 14px 0; line-height: 1.5; font-size: 0.95rem; }}
-.ps-note.info {{ background: {TEAL_SOFT}; color: {INK}; }}
-.ps-note.warn {{ background: {AMBER_SOFT}; color: #6B4205; }}
-.ps-note.limit {{ background: #EEF2F6; color: {TEXT}; }}
-.ps-note b {{ font-weight: 600; }}
+.ps-note {{ border-radius: 12px; padding: 13px 17px; margin: 8px 0 14px 0; line-height: 1.55; font-size: 0.97rem; }}
+.ps-note.info {{ background: {p['TEAL_SOFT']}; color: {p['INK']}; }}
+.ps-note.warn {{ background: {p['AMBER_SOFT']}; color: {p['INK']}; border-left: 4px solid {p['AMBER']}; }}
+.ps-note.limit {{ background: {p['GREY_SOFT']}; color: {p['INK']}; }}
+.ps-note b {{ font-weight: 700; }}
 
-/* buttons and links */
-.stMain [data-testid="stPageLink"] a {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 10px; padding: 12px 14px;
+/* links, buttons and the sidebar */
+.stMain [data-testid="stPageLink"] a {{ background: {p['CARD']}; border: 1px solid {p['LINE']}; border-radius: 14px; padding: 14px;
   justify-content: center; }}
-.stMain [data-testid="stPageLink"] a:hover {{ border-color: {TEAL}; background: {TEAL_SOFT}; }}
-.stMain [data-testid="stPageLink"] a p {{ font-weight: 600; color: {INK}; }}
-
-/* sidebar */
-[data-testid="stSidebar"] .ps-side {{ font-size: 0.84rem; color: #BCCCDC; line-height: 1.55; }}
+.stMain [data-testid="stPageLink"] a:hover {{ border-color: {p['TEAL']}; background: {p['TEAL_SOFT']}; }}
+.stMain [data-testid="stPageLink"] a p, .stMain [data-testid="stPageLink"] a span {{ font-weight: 600; color: {p['INK']} !important; }}
+.stMain button[kind="primary"] {{ background: {p['TEAL']}; border-color: {p['TEAL']}; color: #FFFFFF; font-weight: 600; }}
+.stMain button[kind="primary"]:hover {{ filter: brightness(1.08); }}
+[data-testid="stSidebar"] .ps-side {{ font-size: 0.86rem; color: #C9D7E3; line-height: 1.55; }}
 [data-testid="stSidebar"] .ps-side b {{ color: #FFFFFF; font-weight: 600; }}
+[data-testid="stSidebar"] .ps-side .role {{ color: #93AEC4; font-size: 0.8rem; }}
 [data-testid="stSidebar"] .ps-side .dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }}
-.ps-foot {{ color: {SLATE}; font-size: 0.8rem; border-top: 1px solid {LINE}; margin-top: 36px; padding-top: 12px; }}
+.ps-foot {{ color: {p['MUTED']}; font-size: 0.84rem; border-top: 1px solid {p['LINE']}; margin-top: 40px; padding-top: 14px; text-align: center; }}
 </style>
 """
 
 
 def apply_style():
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(_css(), unsafe_allow_html=True)
 
 
 def esc(text):
@@ -202,35 +272,37 @@ def sparkline_svg(values, width=1000, height=96):
     peak = int(np.argmax(v))
     return (f'<svg class="ps-spark" viewBox="0 0 {width} {height}" preserveAspectRatio="none" role="img" '
             f'aria-label="Monthly recall events over time">'
-            f'<polygon points="0,{height} {pts} {width},{height}" fill="rgba(15,118,110,0.35)"/>'
-            f'<polyline points="{pts}" fill="none" stroke="{TEAL_LIGHT}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>'
-            f'<circle cx="{x[peak]:.1f}" cy="{y[peak]:.1f}" r="5" fill="{AMBER}" stroke="{INK}" stroke-width="2"/></svg>')
+            f'<polygon points="0,{height} {pts} {width},{height}" fill="rgba(46,196,174,0.30)"/>'
+            f'<polyline points="{pts}" fill="none" stroke="#7BE3D1" stroke-width="1.8" vector-effect="non-scaling-stroke"/>'
+            f'<circle cx="{x[peak]:.1f}" cy="{y[peak]:.1f}" r="5" fill="#F2AE45" stroke="#0B2239" stroke-width="2"/></svg>')
 
 
 def hero(kicker, title, text, spark_values=None, spark_note=""):
     spark = sparkline_svg(spark_values) if spark_values is not None else ""
-    note = f'<div class="note">{esc(spark_note)}</div>' if spark_note else '<div style="height:28px"></div>'
-    _html(f'<div class="ps-hero"><div class="kicker">{esc(kicker)}</div><h1>{esc(title)}</h1><p>{esc(text)}</p>{spark}{note}</div>')
+    note = f'<div class="note">{esc(spark_note)}</div>' if spark_note else '<div style="height:30px"></div>'
+    _html(f'<div class="ps-hero"><div class="kicker">✦ {esc(kicker)}</div><h1>{esc(title)}</h1><p>{esc(text)}</p>{spark}{note}</div>')
 
 
-def page_header(title, text):
-    _html(f'<div class="ps-head"><h1>{esc(title)}</h1><p>{esc(text)}</p></div>')
+def page_header(title, text, icon="", ai=False):
+    badge = '<span class="ps-ai">AI</span>' if ai else ""
+    ic = f'<div class="icon">{icon}</div><br>' if icon else ""
+    _html(f'<div class="ps-head">{ic}<h1>{esc(title)}{badge}</h1><p>{esc(text)}</p></div>')
 
 
 def section(title, text=None):
     st.header(title, anchor=False)
     if text:
-        _html(f'<p class="ps-sub">{esc(text)}</p>')
+        _html(f'<div class="ps-subwrap"><p class="ps-sub">{esc(text)}</p></div>')
 
 
 def findings(items):
-    """items: list of (big value, sentence, tone) where tone is '', 'coral', 'amber' or 'ink'."""
-    _html('<div class="ps-find">' + "".join(f'<div><div class="n {t}">{esc(n)}</div><div class="t">{esc(s)}</div></div>'
+    """items: list of (big value, sentence, tone) where tone is 'coral', 'teal', 'blue' or 'amber'."""
+    _html('<div class="ps-find">' + "".join(f'<div class="{t}"><div class="n">{esc(n)}</div><div class="t">{esc(s)}</div></div>'
                                             for n, s, t in items) + "</div>")
 
 
 def kpis(items):
-    """items: list of (value, label, tone) where tone is '', 'coral', 'amber' or 'teal'."""
+    """items: list of (value, label, tone) where tone is '', 'coral', 'amber', 'teal' or 'blue'."""
     _html('<div class="ps-kpis">' + "".join(f'<div class="ps-kpi {t}"><div class="v">{esc(v)}</div><div class="l">{esc(l)}</div></div>'
                                             for v, l, t in items) + "</div>")
 
@@ -246,8 +318,14 @@ def who_strip(user, job, decision):
           f'<div><b>The decision it supports</b><span>{esc(decision)}</span></div></div>')
 
 
+def ai_band(title, text, question, answer):
+    _html(f'<div class="ps-aiband"><div><h4>{esc(title)}<span class="ps-ai">AI</span></h4><p>{esc(text)}</p></div>'
+          f'<div><div class="q">{esc(question)}</div><div class="a">{esc(answer)}</div></div></div>')
+
+
 def class_legend():
-    fills = {"Class I": (CORAL_SOFT, CORAL), "Class II": (AMBER_SOFT, "#9A5B07"), "Class III": ("#EEF2F6", SLATE)}
+    fills = {"Class I": (P["CORAL_SOFT"], P["CORAL_TEXT"]), "Class II": (P["AMBER_SOFT"], P["AMBER_TEXT"]),
+             "Class III": (P["GREY_SOFT"], P["MUTED"])}
     _html('<div class="ps-classes">' + "".join(
         f'<div><b style="background:{bg};color:{fg}">{c}</b>{esc(CLASS_TEXT[c])}</div>' for c, (bg, fg) in fills.items()) + "</div>")
 
@@ -259,18 +337,9 @@ def chip(text, tone):
 def bidder_card(name, match_text, flags_text, status_text, tone, numbers, next_step):
     nums = "".join(f'<div><b>{esc(v)}</b>{esc(k)}</div>' for k, v in numbers)
     flags = f'<div class="flags">{esc(flags_text)}</div>' if flags_text else ""
-    _html(f'<div class="ps-bid"><div class="top"><div><div class="name">{esc(name)}</div>'
+    _html(f'<div class="ps-bid {tone}"><div class="top"><div><div class="name">{esc(name)}</div>'
           f'<div class="match">{esc(match_text)}</div></div>{chip(status_text, tone)}</div>{flags}'
           f'<div class="nums">{nums}</div><div class="next"><b>Next step:</b> {esc(next_step)}</div></div>')
-
-
-def note(text, kind="info"):
-    _html(f'<div class="ps-note {kind}">{text}</div>')
-
-
-def footer(source):
-    _html(f'<div class="ps-foot">Data: {esc(source)}. PharmaSignal is decision support: it gives evidence for people to weigh '
-          'and never a verdict on a medicine or supplier.</div>')
 
 
 def signal_cards(items):
@@ -299,3 +368,19 @@ def evidence_cards(df, n=3, length=260):
         text = e.text if len(e.text) <= length else e.text[:length].rsplit(" ", 1)[0] + "..."
         rows.append(f'<div class="ps-ev"><code>{esc(e.doc_id)}</code>{esc(text)}</div>')
     _html('<div class="ps-evs">' + "".join(rows) + "</div>")
+
+
+def team_cards(team):
+    initials = lambda n: "".join(w[0] for w in n.split()[:2]).upper()
+    _html('<div class="ps-team">' + "".join(
+        f'<div><div class="av">{initials(n)}</div><div class="nm">{esc(n)}</div><div class="rl">{esc(r)}</div></div>'
+        for n, r in team.items()) + "</div>")
+
+
+def note(text, kind="info"):
+    _html(f'<div class="ps-note {kind}">{text}</div>')
+
+
+def footer(source):
+    _html(f'<div class="ps-foot">PharmaSignal AI, a capstone group project. Data: {esc(source)}. '
+          'It gives evidence for people to weigh and never a verdict on a medicine or supplier.</div>')
