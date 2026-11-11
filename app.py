@@ -115,7 +115,7 @@ def home():
     by_month = EVENTS.dropna(subset=["report_date_dt"]).set_index("report_date_dt").resample("MS").event_id.nunique()
     peak_month, peak_n = by_month.idxmax(), int(by_month.max())
     ui.hero("PharmaSignal AI: recall intelligence for medicines procurement",
-            "Check a supplier's recall record before you award the tender",
+            "Check a supplier's recall record before you buy medicines from them",
             "An AI-powered assistant built on fourteen years of US FDA drug-quality recalls. It sorts recall reasons with "
             "machine learning, spots unusual surges, and answers your questions with evidence you can check.",
             by_month.values,
@@ -127,7 +127,7 @@ def home():
 
     ui.section("Where would you like to start?")
     st.markdown('<p class="ps-infolabel">Click any card to open that page.</p>', unsafe_allow_html=True)
-    links = [(findings_pg, "At a Glance", ":material/insights:"), (failures_pg, "Failure Patterns", ":material/science:"),
+    links = [(findings_pg, "Recall Snapshot", ":material/insights:"), (failures_pg, "Failure Patterns", ":material/science:"),
              (firms_pg, "Firm Directory", ":material/factory:"), (latest_pg, "Signal Radar", ":material/radar:"),
              (tender_pg, "Tender Screener", ":material/fact_check:"), (ask_pg, "Ask PharmaSignal AI", ":material/smart_toy:")]
     for row in (links[:3], links[3:]):
@@ -165,7 +165,7 @@ def record_filter(key):
 
 def key_findings():
     n_ev = EVENTS.event_id.nunique()
-    ui.page_header("At a Glance", icon="insights", text=
+    ui.page_header("Recall Snapshot", icon="insights", text=
                    f"The four things to remember from {n_ev:,} FDA drug-quality recall events, "
                    f"{d.provenance['report_date_range'][0][:4]} to {d.provenance['report_date_range'][1][:4]}.")
     share_i = (EVENTS.classification == "Class I").mean()
@@ -861,7 +861,7 @@ def team_feedback():
 
 # ============================================================ navigation and sidebar
 home_pg = st.Page(home, title="Home", icon=":material/home:", default=True)
-findings_pg = st.Page(key_findings, title="At a Glance", icon=":material/insights:", url_path="findings")
+findings_pg = st.Page(key_findings, title="Recall Snapshot", icon=":material/insights:", url_path="findings")
 failures_pg = st.Page(what_goes_wrong, title="Failure Patterns", icon=":material/science:", url_path="failures")
 firms_pg = st.Page(firms_and_records, title="Firm Directory", icon=":material/factory:", url_path="firms")
 latest_pg = st.Page(latest_signals, title="Signal Radar", icon=":material/radar:", url_path="signals")
@@ -887,6 +887,5 @@ with st.sidebar:
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
 <p><b>AI assistant</b><br><span class="dot" style="background:{ui.P['GREEN'] if ai_on else ui.AMBER}"></span>
 {'Claude connected' if ai_on else 'Evidence only (no API key)'}</p>
-<p><b>Team</b><br>{'<br>'.join(f"{n}<br><span class='role'>{r}</span>" for n, r in ui.TEAM.items())}</p>
 <p><b>Capstone group project</b></p></div>""", unsafe_allow_html=True)
 

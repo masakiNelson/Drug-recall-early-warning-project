@@ -81,7 +81,7 @@ An interactive web app built on the notebook's results, with eleven short pages 
 | Group | Page | What it shows |
 |---|---|---|
 | Start | **Home** | What PharmaSignal AI is, who it is for, and where to start |
-| Recall Insights | **At a Glance** | Four headline facts and recall severity year by year |
+| Recall Insights | **Recall Snapshot** | Four headline facts and recall severity year by year |
 | | **Failure Patterns** | Failure types and dosage forms behind recalls |
 | | **Firm Directory** | The firms that recall most often, and a search across all records |
 | Early Warning | **Signal Radar** | Recent surges in recalls, how big each jump was, and how strong the signal is |

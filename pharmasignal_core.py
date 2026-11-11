@@ -162,25 +162,60 @@ def load_data():
                       embed=embed, vectors=vectors, max_distance=max_distance, embedding_method=method)
 
 
+LSA_CACHE = OUT / "vector_db" / "lsa_index.joblib"
+
+
+def _docs_signature(documents):
+    import hashlib
+    return hashlib.md5("\x1e".join(documents).encode("utf-8")).hexdigest()
+
+
 def build_retriever(documents):
-    """Same search method as the notebook: semantic embeddings (all-MiniLM-L6-v2) when sentence-transformers is
-    installed and the notebook saved vectors with it, otherwise the LSA fallback (TF-IDF + SVD) refitted here."""
-    saved_path = OUT / "vector_db" / "vectors.npy"
-    saved = np.load(saved_path) if saved_path.exists() else None
+    """Search index for the assistant.
+
+    Uses semantic embeddings (all-MiniLM-L6-v2) only when sentence-transformers is installed; otherwise the LSA
+    index (TF-IDF + SVD). The LSA index is saved to outputs/vector_db/lsa_index.joblib and reloaded on later starts,
+    so the hosted app does not refit it every time (this is the slowest part of start-up).
+    """
+    import importlib.util
+    if importlib.util.find_spec("sentence_transformers") is not None and os.environ.get("PHARMASIGNAL_FAST_START") != "1":
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+            embed = lambda texts: model.encode(list(texts), batch_size=64, normalize_embeddings=True, show_progress_bar=False)
+            saved_path = OUT / "vector_db" / "vectors.npy"
+            saved = np.load(saved_path) if saved_path.exists() else None
+            if saved is not None and len(saved) == len(documents) and saved.shape[1] == len(embed(["dimension check"])[0]):
+                vectors = saved.astype("float32")
+            else:
+                vectors = np.asarray(embed(documents), dtype="float32")
+            return embed, vectors, 0.60, "all-MiniLM-L6-v2 (semantic embeddings)"
+        except Exception:
+            pass
+    import joblib
+    sig = _docs_signature(documents)
+    if LSA_CACHE.exists():
+        try:
+            cache = joblib.load(LSA_CACHE)
+            if cache.get("signature") == sig:
+                tfidf, svd = cache["tfidf"], cache["svd"]
+                svd.components_ = np.asarray(svd.components_, dtype="float32")
+                embed = lambda texts: normalize(svd.transform(tfidf.transform(list(texts))))
+                return embed, np.asarray(cache["vectors"], dtype="float32"), 0.80, "LSA (TF-IDF + SVD), pre-built index"
+        except Exception:
+            pass
+    tfidf = TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True, stop_words="english")
+    svd = TruncatedSVD(256, random_state=RANDOM_STATE).fit(tfidf.fit_transform(documents))
+    embed = lambda texts: normalize(svd.transform(tfidf.transform(list(texts))))
+    vectors = np.asarray(embed(documents), dtype="float32")
+    tfidf.stop_words_ = None          # list of discarded terms, not needed for transforming new text; keeps the file small
+    small_svd = __import__("copy").copy(svd)
+    small_svd.components_ = svd.components_.astype("float16")     # half precision: a quarter of the file size
     try:
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-        embed = lambda texts: model.encode(list(texts), batch_size=64, normalize_embeddings=True, show_progress_bar=False)
-        if saved is not None and len(saved) == len(documents) and saved.shape[1] == len(embed(["dimension check"])[0]):
-            vectors = saved.astype("float32")
-        else:
-            vectors = np.asarray(embed(documents), dtype="float32")
-        return embed, vectors, 0.60, "all-MiniLM-L6-v2 (semantic embeddings)"
+        joblib.dump({"signature": sig, "tfidf": tfidf, "svd": small_svd, "vectors": vectors.astype("float16")}, LSA_CACHE, compress=3)
     except Exception:
-        tfidf = TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True, stop_words="english")
-        svd = TruncatedSVD(256, random_state=RANDOM_STATE).fit(tfidf.fit_transform(documents))
-        embed = lambda texts: normalize(svd.transform(tfidf.transform(list(texts))))
-        return embed, np.asarray(embed(documents), dtype="float32"), 0.80, "LSA fallback (TF-IDF + SVD)"
+        pass
+    return embed, vectors, 0.80, "LSA (TF-IDF + SVD)"
 
 
 # ---------------------------------------------------------------- tender screening (from notebook section 6)
