@@ -1,3 +1,5 @@
+# PharmaSignal theme: white background, navy sidebar, teal accents (light theme only).
+# Keep this folder at the TOP LEVEL of the GitHub repository (next to app.py).
 [theme]
 base = "light"
 primaryColor = "#0F766E"
