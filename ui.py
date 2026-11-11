@@ -7,24 +7,27 @@ import html
 
 import altair as alt
 import numpy as np
+import plotly.graph_objects as go  # noqa: F401
 import streamlit as st
 
 # ---------------------------------------------------------------- palettes
 PALETTES = {
     "light": dict(
-        BG="#F3F6F9", CARD="#FFFFFF", INK="#0B2239", TEXT="#1B3550", MUTED="#3D5874", LINE="#D2DDE6", SOFTLINE="#E6EDF2",
+        BG="#FFFFFF", CARD="#FFFFFF", INK="#0B2239", TEXT="#1B3550", MUTED="#3D5874", LINE="#D2DDE6", SOFTLINE="#E6EDF2",
         TEAL="#0F766E", TEAL_SOFT="#DDF1EC", TEAL_TEXT="#0B5E57", TEAL_LIGHT="#5FD4BD",
         AMBER="#DB8E1C", AMBER_SOFT="#FCF0DA", AMBER_TEXT="#8A5300",
         CORAL="#C0412A", CORAL_SOFT="#FBE6E1", CORAL_TEXT="#9E2F1B",
-        BLUE="#1F5F99", BLUE_SOFT="#E3EEF8", MIST="#A3B7C9", GREY_SOFT="#E9EFF4",
-        HERO="#0B2239", HERO_GLOW="rgba(45,191,169,0.28)", GRID="#E3EAF0", SIDEBAR="#0B2239"),
+        BLUE="#1F5F99", BLUE_SOFT="#E3EEF8", MIST="#A3B7C9", GREY_SOFT="#F1F5F8",
+        HERO="#0B2239", HERO_GLOW="rgba(45,191,169,0.28)", GRID="#E3EAF0", SIDEBAR="#0B2239",
+        CARD_SOLID="#FFFFFF", FAINT="#7C93A8", GREEN="#1E9E6A"),
     "dark": dict(
         BG="#0B1826", CARD="#12253A", INK="#F2F7FB", TEXT="#DCE6EF", MUTED="#AFC1D1", LINE="#27425D", SOFTLINE="#1D3550",
         TEAL="#2EC4AE", TEAL_SOFT="#103B3A", TEAL_TEXT="#7BE3D1", TEAL_LIGHT="#7BE3D1",
         AMBER="#F2AE45", AMBER_SOFT="#3A2C12", AMBER_TEXT="#F7C979",
         CORAL="#F2785F", CORAL_SOFT="#3D1D17", CORAL_TEXT="#F8A493",
         BLUE="#7FB4E8", BLUE_SOFT="#16304A", MIST="#4E6A85", GREY_SOFT="#1A3048",
-        HERO="#102F4B", HERO_GLOW="rgba(46,196,174,0.30)", GRID="#1E3650", SIDEBAR="#07111C"),
+        HERO="#102F4B", HERO_GLOW="rgba(46,196,174,0.30)", GRID="#1E3650", SIDEBAR="#07111C",
+        CARD_SOLID="#12253A", FAINT="#6F8AA3", GREEN="#3DD598"),
 }
 MODE = "light"
 P = PALETTES[MODE]
@@ -118,16 +121,17 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
           line-height: 1.55; text-align: center; display: inline-block; }}
 
 /* hero */
-.ps-hero {{ background: radial-gradient(120% 140% at 50% 0%, {p['HERO_GLOW']} 0%, rgba(0,0,0,0) 55%), {p['HERO']};
-           border-radius: 20px; padding: 40px 40px 0 40px; margin-bottom: 22px; overflow: hidden; text-align: center; }}
-.ps-hero .kicker {{ display: inline-flex; align-items: center; gap: 8px; background: rgba(95,212,189,0.14);
-                   color: #8EE6D5; border: 1px solid rgba(95,212,189,0.35); border-radius: 999px; padding: 5px 14px;
-                   font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; }}
-.ps-hero h1 {{ color: #FFFFFF !important; font-size: clamp(1.7rem, 3.8vw, 2.6rem); font-weight: 700; line-height: 1.15;
-              margin: 0 auto 12px auto; padding: 0; max-width: 22ch; }}
-.ps-hero p {{ color: #D3E0EA; font-size: 1.08rem; margin: 0 auto; max-width: 60ch; line-height: 1.6; }}
-.ps-hero .ps-spark {{ display: block; width: calc(100% + 80px); margin: 26px -40px 0 -40px; height: 96px; }}
-.ps-hero .note {{ color: #A9BDCF; font-size: 0.82rem; padding: 9px 0 15px 0; }}
+.ps-hero {{ background: radial-gradient(90% 120% at 50% 0%, {p['HERO_GLOW']} 0%, rgba(0,0,0,0) 60%), {p['HERO']};
+           border-radius: 18px; padding: 26px 32px 0 32px; margin-bottom: 18px; overflow: hidden; text-align: center;
+           box-shadow: 0 10px 30px rgba(11,34,57,0.18); }}
+.ps-hero .kicker {{ display: inline-flex; align-items: center; gap: 6px; background: rgba(95,212,189,0.14);
+                   color: #8EE6D5; border: 1px solid rgba(95,212,189,0.35); border-radius: 999px; padding: 3px 12px;
+                   font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; }}
+.ps-hero h1 {{ color: #FFFFFF !important; font-size: clamp(1.35rem, 2.4vw, 1.85rem); font-weight: 700; line-height: 1.2;
+              margin: 0 auto 8px auto; padding: 0; max-width: 34ch; }}
+.ps-hero p {{ color: #D3E0EA; font-size: 0.97rem; margin: 0 auto; max-width: 66ch; line-height: 1.55; }}
+.ps-hero .ps-spark {{ display: block; width: calc(100% + 64px); margin: 16px -32px 0 -32px; height: 54px; }}
+.ps-hero .note {{ color: #A9BDCF; font-size: 0.74rem; padding: 6px 0 10px 0; }}
 
 /* inner page header, centred */
 .ps-head {{ text-align: center; padding: 8px 0 22px 0; margin-bottom: 20px; border-bottom: 1px solid {p['LINE']}; }}
@@ -248,6 +252,8 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .ps-eval td {{ color: {p['TEXT']}; padding: 11px 14px; border-bottom: 1px solid {p['SOFTLINE']}; vertical-align: top; line-height: 1.45; }}
 .ps-eval tr:last-child td {{ border-bottom: none; }}
 .ps-eval td.c {{ color: {p['INK']}; font-weight: 600; white-space: nowrap; }}
+.ps-eval td.n {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}
+.ps-plot-gap {{ height: 2px; }}
 [data-testid="stHeader"] {{ background: transparent !important; }}
 
 /* sidebar: styled here as well as in config.toml, so it stays readable even if the theme file is not loaded */
@@ -264,7 +270,11 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 [data-testid="stSidebar"] .ps-side {{ font-size: 0.86rem; color: #C9D7E3; line-height: 1.55; }}
 [data-testid="stSidebar"] .ps-side b {{ color: #FFFFFF; font-weight: 600; }}
 [data-testid="stSidebar"] .ps-side .role {{ color: #93AEC4; font-size: 0.8rem; }}
+[data-testid="stSidebar"] .ps-sidehead {{ color: #FFFFFF; font-weight: 700; font-size: 0.95rem; margin: 6px 0 2px 0; }}
+[data-testid="stSidebar"] label, [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{ color: #DCE6EF !important; }}
 [data-testid="stSidebar"] .ps-side .dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }}
+.ps-kpi, .ps-who > div, .ps-aiband, .ps-steps > div, .ps-classes > div, .ps-bid, .ps-sig, .ps-ev, .ps-team > div,
+.ps-eval, .stMain [data-testid="stPageLink"] a {{ box-shadow: 0 1px 2px rgba(11,34,57,0.04), 0 4px 14px rgba(11,34,57,0.05); }}
 .ps-foot {{ color: {p['MUTED']}; font-size: 0.84rem; border-top: 1px solid {p['LINE']}; margin-top: 40px; padding-top: 14px; text-align: center; }}
 </style>
 """
@@ -416,3 +426,43 @@ def eval_table(df):
         f'<td>{chip(r.status, STATUS_TONE.get(r.status, "amber"))}</td></tr>' for r in df.itertuples())
     _html(f'<table class="ps-eval"><thead><tr><th>Component</th><th>Target</th><th>Result</th><th>Status</th></tr></thead>'
           f'<tbody>{rows}</tbody></table>')
+
+
+# ---------------------------------------------------------------- Plotly (signals module)
+STRENGTH = {3: ("Strong", "coral"), 2: ("Moderate", "amber"), 1: ("Low", "grey")}
+STRENGTH_HELP = "Strong = all three detection methods agree; Moderate = two agree; Low = one method only."
+
+
+def strength_label(n_methods):
+    return STRENGTH.get(int(min(max(n_methods, 1), 3)))[0]
+
+
+def strength_colours():
+    return {"Strong": P["CORAL"], "Moderate": P["AMBER"], "Low": P["FAINT"]}
+
+
+def plotly_chart(fig, height=380):
+    font = "IBM Plex Sans, Segoe UI, Arial, sans-serif"
+    fig.update_layout(height=height, margin=dict(l=70, r=16, t=40, b=56), paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(0,0,0,0)", font=dict(family=font, color=P["TEXT"], size=13),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(color=P["TEXT"]), title_text=""),
+                      hoverlabel=dict(font_family=font, bgcolor=P["CARD_SOLID"], font_color=P["TEXT"], bordercolor=P["MIST"]))
+    for ax in (fig.update_xaxes, fig.update_yaxes):
+        ax(automargin=True, gridcolor=P["GRID"], zeroline=False, linecolor=P["MIST"], tickfont=dict(color=P["MUTED"]),
+           title_font=dict(color=P["MUTED"]))
+    _html('<div class="ps-plot-gap"></div>')
+    st.plotly_chart(fig, width="stretch", theme=None,
+                    config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"]})
+
+
+def signal_table(rows):
+    """rows: dicts with month, kind, name, events, usual, times, flagged_by, class_i, strength."""
+    tone = {k: t for k, t in STRENGTH.values()}
+    body = "".join(
+        f'<tr><td>{esc(r["month"])}</td><td>{esc(r["kind"])}</td><td class="c">{esc(r["name"])}</td>'
+        f'<td class="n">{r["events"]}</td><td class="n">{r["usual"]:.1f}</td><td class="n">{r["times"]}</td>'
+        f'<td>{esc(r["flagged_by"])}</td><td class="n">{r["class_i"]}</td>'
+        f'<td>{chip(r["strength"], tone.get(r["strength"], "grey"))}</td></tr>' for r in rows)
+    _html('<div style="overflow-x:auto"><table class="ps-eval ps-stable"><thead><tr><th>Month</th><th>Watching</th><th>Name</th>'
+          '<th>Events</th><th>Usual / month</th><th>× usual</th><th>Flagged by</th><th>Class I share</th><th>Strength</th>'
+          f'</tr></thead><tbody>{body}</tbody></table></div>')

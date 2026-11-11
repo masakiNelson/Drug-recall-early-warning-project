@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 
 import altair as alt
+import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -15,13 +16,10 @@ import pharmasignal_core as core
 import ui
 
 st.set_page_config(page_title="PharmaSignal", page_icon="💊", layout="wide", initial_sidebar_state="auto")
-try:
-    _mode = st.context.theme.type or "light"     # follows the viewer's light or dark setting
-except Exception:
-    _mode = "light"
-ui.set_mode(_mode)
+ui.set_mode("light")   # one consistent look: white background, navy sidebar
 ui.apply_style()
-st.logo(str(core.ROOT / "assets" / "logo.svg"), size="large", icon_image=str(core.ROOT / "assets" / "icon.svg"))
+st.logo(str(core.ROOT / "assets" / ("logo.svg" if ui.MODE == "dark" else "logo_light.svg")), size="large",
+        icon_image=str(core.ROOT / "assets" / "icon.svg"))
 
 
 
@@ -121,8 +119,8 @@ def home():
             "An AI-powered assistant built on fourteen years of US FDA drug-quality recalls. It sorts recall reasons with "
             "machine learning, spots unusual surges, and answers your questions with evidence you can check.",
             by_month.values,
-            f"Each point is one month of FDA drug-quality recall events, {by_month.index.min():%b %Y} to "
-            f"{by_month.index.max():%b %Y}. The amber dot is the busiest month: {peak_month:%B %Y}, {peak_n} events.")
+            f"Monthly FDA drug-quality recall events, {by_month.index.min():%b %Y} to {by_month.index.max():%b %Y}. "
+            f"Busiest month (amber): {peak_month:%b %Y}, {peak_n} events.")
     ui.who_strip("Pharmacists and procurement officers in hospitals, supply agencies and distributors",
                  "Screen the firms and products bidding for a medicines tender",
                  "Proceed with a bidder, or ask for more documents before award")
@@ -252,62 +250,88 @@ def latest_signals():
     ui.page_header("Latest signals", icon="📡", text=
                    "A signal means a month had clearly more recall events than usual for a failure type, dosage form or firm. "
                    "It is a prompt to look closer, not a confirmed quality failure.")
-    ui.steps(["Choose the period and what to watch", "Read why each month was flagged",
-              "Open Trends and sensitivity to see any series month by month"])
+    al = d.alerts.copy()
+    al["strength"] = al.n_methods.map(ui.strength_label)
 
-    al_all = d.alerts.copy()
-    cons = al_all[al_all.n_methods >= 2].sort_values(["month", "n_methods"], ascending=False)
-    if len(cons):
-        latest = cons.iloc[0]
-        label = nice_cat(latest.series_name) if latest.series_type == "category" else firm_title(latest.series_name)
-        what = {"category": "failure type", "product_group": "dosage form", "firm": "firm"}[latest.series_type]
-        ui.note(f"<b>Most recent consensus signal:</b> {ui.esc(label)} ({what}) in {month_label(latest.month)}, with "
-                f"{int(latest.n_events)} recall events against a usual {latest.hist_mean:.1f} a month. "
-                f"{int(latest.n_methods)} of 3 methods agreed.", "warn")
-
-    c1, c2, c3 = st.columns(3)
-    window = c1.selectbox("Period", ["Last 6 months", "Last 12 months", "All history"], index=1)
-    kinds = c2.multiselect("Watch", ["category", "product_group", "firm"], default=["category", "product_group", "firm"],
-                           format_func={"category": "Failure types", "product_group": "Dosage forms", "firm": "Firms"}.get)
-    min_methods = c3.select_slider("Methods that must agree", [1, 2, 3], value=1,
-                                   help="Three methods check each month. 2 or more agreeing = consensus signal.")
-    al = al_all
+    # ---- sidebar controls
+    with st.sidebar:
+        st.markdown('<div class="ps-sidehead">Signal filters</div>', unsafe_allow_html=True)
+        window = st.select_slider("Reporting period", ["3 months", "6 months", "12 months", "24 months", "All history"],
+                                  value="12 months")
+        kinds = st.multiselect("Watch", ["category", "product_group", "firm"], default=["category", "product_group", "firm"],
+                               format_func={"category": "Failure types", "product_group": "Dosage forms", "firm": "Firms"}.get)
+        strengths = st.multiselect("Signal strength", ["Strong", "Moderate", "Low"], default=["Strong", "Moderate", "Low"],
+                                   help=ui.STRENGTH_HELP)
+        st.divider()
     if window != "All history":
-        al = al[al.month > str(d.last_month - (6 if window == "Last 6 months" else 12))]
-    al = al[al.series_type.isin(kinds) & (al.n_methods >= min_methods)].sort_values(["month", "n_methods"], ascending=False)
-    ui.kpis([(f"{len(al)}", "signals in this view", "amber"),
-             (f"{int((al.n_methods >= 2).sum())}", "consensus signals, where 2+ methods agree", "amber"),
-             (f"{al.series_name.nunique()}", "failure types, dosage forms or firms affected", ""),
-             (month_label(d.last_month), "latest month in the data", "")])
-    show = al[["month", "series_type", "series_name", "n_events", "hist_mean", "n_methods", "why_flagged"]].copy()
-    show["series_name"] = [nice_cat(n) if t == "category" else firm_title(n) for t, n in zip(show.series_type, show.series_name)]
-    show["month"] = show.month.map(month_label)
-    show["flagged_by"] = show.why_flagged.str.extract(r"flagged by ([^;]+)")[0].str.replace("zscore", "z-score")
-    show["class_i"] = show.why_flagged.str.extract(r"(\d+)% of records Class I")[0].astype(float)
-    show = show.drop(columns="why_flagged")
-    show["series_type"] = show.series_type.map({"category": "Failure type", "product_group": "Dosage form", "firm": "Firm"})
-    if show.empty:
-        ui.note("No signals match these filters. Widen the period or lower the number of methods that must agree.", "info")
-    else:
-        st.subheader("Latest signals in this view")
-        cards = show.head(6)
-        ui.signal_cards([{"name": r.series_name, "kind": r.series_type, "month": r.month, "events": int(r.n_events),
-                          "usual": float(r.hist_mean), "methods": int(r.n_methods),
-                          "flagged_by": r.flagged_by if isinstance(r.flagged_by, str) else "the detectors",
-                          "class_i": r.class_i} for r in cards.itertuples()])
-        if len(show) > 6:
-            st.caption(f"Showing the 6 most recent of {len(show)} signals. Open the full table below to see them all.")
-    if not show.empty:
-        with st.expander(f"All {len(show)} signals as a table"):
-            st.dataframe(show, hide_index=True, width="stretch", column_config={
-                "month": "Month", "series_type": "Watching", "series_name": "Name", "n_events": "Events",
-                "hist_mean": st.column_config.NumberColumn("Usual per month", format="%.1f"),
-                "n_methods": st.column_config.ProgressColumn("Methods agreeing", min_value=0, max_value=3, format="%d of 3",
-                                                             width="small"),
-                "flagged_by": st.column_config.TextColumn("Flagged by", width="medium"),
-                "class_i": st.column_config.NumberColumn("Class I share", format="%d%%")})
-            st.download_button("Download these signals (CSV)", show.to_csv(index=False), "pharmasignal_signals.csv",
-                               "text/csv")
+        al = al[al.month > str(d.last_month - int(window.split()[0]))]
+    al = al[al.series_type.isin(kinds) & al.strength.isin(strengths)].sort_values(["month", "n_methods"], ascending=False)
+
+    top = al[al.n_methods >= 2].head(1)
+    if len(top):
+        t = top.iloc[0]
+        label = nice_cat(t.series_name) if t.series_type == "category" else firm_title(t.series_name)
+        what = {"category": "failure type", "product_group": "dosage form", "firm": "firm"}[t.series_type]
+        ui.note(f"<b>Most recent {t.strength.lower()} signal:</b> {ui.esc(label)} ({what}) in {month_label(t.month)}, with "
+                f"{int(t.n_events)} recall events against a usual {t.hist_mean:.1f} a month.", "warn")
+
+    # ---- summary metrics
+    events_in_signals = int(al.n_events.sum())
+    ui.kpis([(f"{len(al)}", "signals detected in this view", "blue"),
+             (f"{int((al.strength == 'Strong').sum())}", "strong signals: all three methods agree", "coral"),
+             (f"{int((al.strength == 'Moderate').sum())}", "moderate signals: two methods agree", "amber"),
+             (f"{events_in_signals:,}", "recall events in the flagged months", "")])
+    if al.empty:
+        ui.note("No signals match these filters. Widen the reporting period or include more strength levels in the sidebar.",
+                "info")
+        ui.footer(d.source)
+        return
+
+    al["name"] = [nice_cat(n) if t == "category" else firm_title(n) for t, n in zip(al.series_type, al.series_name)]
+    al["kind"] = al.series_type.map({"category": "Failure type", "product_group": "Dosage form", "firm": "Firm"})
+    al["times"] = al.n_events / np.maximum(al.hist_mean, 0.5)
+    al["flagged_by"] = al.why_flagged.str.extract(r"flagged by ([^;]+)")[0].str.replace("zscore", "z-score").fillna("the detectors")
+    al["class_i"] = al.why_flagged.str.extract(r"(\d+)% of records Class I")[0].astype(float)
+    al["month_label"] = al.month.map(month_label)
+
+    # ---- signal strength map (Plotly)
+    ui.section("Signal strength map",
+               "Each dot is one flagged month. Further right means more events than usual; higher means a more unusual jump. "
+               "Bigger dots had more recall events.")
+    fig = go.Figure()
+    for level, colour in ui.strength_colours().items():
+        sub = al[al.strength == level]
+        if sub.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=sub.times, y=sub.zscore, mode="markers", name=level,
+            marker=dict(size=np.clip(sub.n_events * 3, 10, 46), color=colour, opacity=0.82,
+                        line=dict(width=1, color=ui.P["CARD_SOLID"])),
+            customdata=np.stack([sub.name, sub.kind, sub.month_label, sub.n_events, sub.hist_mean.round(1)], axis=1),
+            hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}, %{customdata[2]}<br>"
+                          "%{customdata[3]} events vs usual %{customdata[4]}<br>%{x:.1f}× usual, z = %{y:.1f}<extra></extra>"))
+    fig.update_xaxes(title_text="Times the usual monthly level", type="log")
+    fig.update_yaxes(title_text="Z-score (how unusual the jump is)")
+    ui.plotly_chart(fig, 400)
+
+    # ---- table with status badges
+    ui.section("Signals in this view", "Newest first. The badge shows how many of the three detection methods agreed.")
+    ui.signal_table([{"month": r.month_label, "kind": r.kind, "name": r.name, "events": int(r.n_events),
+                      "usual": float(r.hist_mean), "times": f"{r.times:.1f}×", "flagged_by": r.flagged_by,
+                      "class_i": "" if r.class_i != r.class_i else f"{r.class_i:.0f}%", "strength": r.strength}
+                     for r in al.head(15).itertuples()])
+    if len(al) > 15:
+        st.caption(f"Showing the 15 most recent of {len(al)} signals.")
+    with st.expander(f"Sort, search or download all {len(al)} signals"):
+        out = al[["month_label", "kind", "name", "n_events", "hist_mean", "times", "flagged_by", "class_i", "strength"]]
+        st.dataframe(out, hide_index=True, width="stretch", column_config={
+            "month_label": "Month", "kind": "Watching", "name": "Name", "n_events": "Events",
+            "hist_mean": st.column_config.NumberColumn("Usual per month", format="%.1f"),
+            "times": st.column_config.NumberColumn("× usual", format="%.1f"),
+            "flagged_by": "Flagged by", "class_i": st.column_config.NumberColumn("Class I share", format="%d%%"),
+            "strength": "Strength"})
+        st.download_button("Download signals (CSV)", out.to_csv(index=False), "pharmasignal_signals.csv", "text/csv",
+                           icon=":material/download:")
 
     with st.expander("How the three methods decide"):
         m1, m2, m3 = st.columns(3)
@@ -318,15 +342,34 @@ def latest_signals():
         m3.markdown("**Isolation Forest**  \nA machine-learning check of seven features together, such as event count, "
                     "Class I share and number of firms involved.")
         st.caption("Every method needs at least 3 events in the month and more than the 12-month average.")
-
     ui.footer(d.source)
 
 
 def signal_trends():
     ui.page_header("Trends and sensitivity", icon="📈", text=
                    "See any failure type or dosage form month by month, and test how strict the signal rules should be.")
+    q = EVENTS.dropna(subset=["report_date_dt"]).copy()
+    q["quarter"] = q.report_date_dt.dt.to_period("Q").dt.start_time
+    q["failure"] = q.analysis_category.map(nice_cat)
+    top5 = q.failure.value_counts().index[:5].tolist()
+    q["failure"] = q.failure.where(q.failure.isin(top5), "All other types")
+    tq = q.groupby(["quarter", "failure"]).event_id.nunique().reset_index(name="events")
+    st.subheader("Recall events per quarter, by failure type")
+    st.caption("The five most common failure types, with everything else grouped. Drag the slider under the chart to zoom.")
+    colours = [ui.TEAL, ui.BLUE, ui.AMBER, ui.CORAL, ui.P["GREEN"], ui.MIST]
+    fig = go.Figure()
+    for name, colour in zip(top5 + ["All other types"], colours):
+        sub = tq[tq.failure == name]
+        fig.add_trace(go.Scatter(x=sub.quarter, y=sub.events, name=name, mode="lines", stackgroup="one",
+                                 line=dict(width=0.8, color=colour), fillcolor=colour,
+                                 hovertemplate=f"<b>{name}</b><br>%{{x|%b %Y}} quarter: %{{y}} events<extra></extra>"))
+    fig.update_layout(hovermode="x unified")
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), title_text="")
+    fig.update_yaxes(title_text="Recall events")
+    ui.plotly_chart(fig, 420)
+
     ms = d.monthly.copy()
-    st.subheader("Try a different sensitivity")
+    ui.section("Try a different sensitivity")
     st.caption("Stricter settings mean fewer alerts to review but more problems missed. Move the sliders to see the "
                "trade-off for failure types and dosage forms.")
     s1, s2, s3 = st.columns(3)
@@ -743,15 +786,16 @@ pg = st.navigation({"Start": [home_pg],
                     "Decide": [tender_pg, ask_pg],
                     "About": [how_pg, team_pg]})
 
+pg.run()
+
 with st.sidebar:
     ai_on = llm is not None
     st.markdown(f"""<div class="ps-side">
 <p>AI-powered drug-quality recall intelligence for medicines procurement.</p>
 <p><b>Data</b><br>openFDA snapshot, {d.provenance['effective_snapshot_date']}<br>
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
-<p><b>AI assistant</b><br><span class="dot" style="background:{ui.TEAL_LIGHT if ai_on else ui.AMBER}"></span>
+<p><b>AI assistant</b><br><span class="dot" style="background:{ui.P['GREEN'] if ai_on else ui.AMBER}"></span>
 {'Claude connected' if ai_on else 'Evidence only (no API key)'}</p>
 <p><b>Team</b><br>{'<br>'.join(f"{n}<br><span class='role'>{r}</span>" for n, r in ui.TEAM.items())}</p>
 <p><b>Capstone group project</b></p></div>""", unsafe_allow_html=True)
 
-pg.run()
