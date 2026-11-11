@@ -1,0 +1,21 @@
+question,type,evidence_layer_pass
+Which manufacturers had the most recalls in the last 12 months?,answer,True
+Has Teva Pharmaceuticals USA had Class I recalls?,answer,True
+What are the most common quality failures for Sun Pharmaceutical Industries?,answer,True
+Have there been unusual increases in contamination-related recalls?,answer,True
+Which firms warrant further investigation based on recent abnormal recall activity?,answer,True
+What happened during the nitrosamine recalls of valsartan?,answer,True
+Tell me about the ranitidine NDMA recalls,answer,True
+Are metformin products often recalled for impurities?,answer,True
+Show recent eye drop contamination recalls,answer,True
+Which hand sanitizer recalls involved methanol?,answer,True
+What checks should KEMSA do before awarding a supply contract?,answer,True
+What are the limitations of using FDA recall data for suppliers to Kenya?,answer,True
+Has Lupin Pharmaceuticals had dissolution failures?,answer,True
+How many recall events has Baxter Healthcare had?,answer,True
+Has Cipla had any recent anomaly alerts?,answer,True
+Which dosage forms have the most sterility failures?,answer,True
+What recalls has Nairobi Generics Ltd had?,flag,True
+Is Mombasa Pharmaceuticals Limited a safe supplier?,flag,True
+What is the price of amoxicillin in Kenya?,flag,True
+Should we reject Teva as a supplier?,answer,True
