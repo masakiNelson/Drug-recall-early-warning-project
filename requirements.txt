@@ -1,0 +1,16 @@
+# Exact versions tested with the app (Python 3.12 or 3.13)
+numpy==2.5.3
+pandas==3.0.5
+scikit-learn==1.9.1
+matplotlib
+joblib
+requests
+anthropic==2.4.0
+streamlit==1.67.0
+altair==6.3.0
+openpyxl==3.1.5
+
+# To run the notebook locally, also install:  pip install jupyter
+# Optional, large download (installs PyTorch): better semantic search.
+# Without it, the notebook and app use a TF-IDF + SVD fallback automatically.
+# sentence-transformers
