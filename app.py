@@ -112,8 +112,8 @@ def friendly_error(action, err):
              "if it keeps happening, re-run the notebook so the outputs folder is up to date.")
 
 
-# ============================================================ Overview
-def overview():
+# ============================================================ Home
+def home():
     by_month = EVENTS.dropna(subset=["report_date_dt"]).set_index("report_date_dt").resample("MS").event_id.nunique()
     peak_month, peak_n = by_month.idxmax(), int(by_month.max())
     ui.hero("PharmaSignal AI: recall intelligence for medicines procurement",
@@ -127,11 +127,14 @@ def overview():
                  "Screen the firms and products bidding for a medicines tender",
                  "Proceed with a bidder, or ask for more documents before award")
 
-    ui.section("What would you like to do?")
-    c1, c2, c3 = st.columns(3)
-    c1.page_link(tender_pg, label="Screen tender bidders", icon=":material/fact_check:", width="stretch")
-    c2.page_link(signals_pg, label="Check recent recall signals", icon=":material/monitoring:", width="stretch")
-    c3.page_link(ask_pg, label="Ask the AI assistant", icon=":material/smart_toy:", width="stretch")
+    ui.section("Where would you like to start?")
+    links = [(findings_pg, "Key findings", ":material/insights:"), (failures_pg, "What goes wrong", ":material/science:"),
+             (firms_pg, "Firms and records", ":material/factory:"), (latest_pg, "Latest signals", ":material/notifications_active:"),
+             (tender_pg, "Screen tender bidders", ":material/fact_check:"), (ask_pg, "Ask the AI assistant", ":material/smart_toy:")]
+    for row in (links[:3], links[3:]):
+        cols = st.columns(3)
+        for c, (page, label, icon) in zip(cols, row):
+            c.page_link(page, label=label, icon=icon, width="stretch")
 
     ui.section("Meet the PharmaSignal AI assistant",
                "Three kinds of AI work together: a machine-learning classifier, anomaly detectors and a language model.")
@@ -142,17 +145,35 @@ def overview():
                "Has Teva Pharmaceuticals USA had Class I recalls?",
                "Facts from the data: 158 recall events, 6 of them Class I, each cited by its recall number. "
                "What this may mean, and the checks to make before award, follow underneath.")
+    ui.footer(d.source)
 
-    # ---- four facts, always for the whole dataset
+
+# ============================================================ Explore the data
+ALL_CLASSES = ["Class I", "Class II", "Class III"]
+
+
+def record_filter(key):
+    """Year and class filter shown at the top of an explore page; returns (records, one row per event)."""
+    years = sorted(int(y) for y in d.recalls.year.dropna().unique())
+    with st.expander("Filter by year or recall class", icon=":material/tune:"):
+        f1, f2 = st.columns([2, 1])
+        yr = f1.slider("Publication year", years[0], years[-1], (years[0], years[-1]), key=f"{key}_yr")
+        classes = f2.multiselect("Recall class", ALL_CLASSES, default=ALL_CLASSES, key=f"{key}_cls")
+    f = d.recalls[d.recalls.year.between(*yr) & (d.recalls.classification.isin(classes)
+                                                 | ~d.recalls.classification.isin(ALL_CLASSES))]
+    return f, f.drop_duplicates("event_id"), classes
+
+
+def key_findings():
     n_ev = EVENTS.event_id.nunique()
+    ui.page_header("Key findings", icon="💡", text=
+                   f"The four things to remember from {n_ev:,} FDA drug-quality recall events, "
+                   f"{d.provenance['report_date_range'][0][:4]} to {d.provenance['report_date_range'][1][:4]}.")
     share_i = (EVENTS.classification == "Class I").mean()
     cats = EVENTS.analysis_category.value_counts(normalize=True)
     forms = EVENTS.product_group.value_counts(normalize=True)
     per_firm = EVENTS.groupby("firm_std").event_id.nunique()
     top3 = [nice_cat(c).lower() for c in cats.index[:3]]
-    ui.section("What the recall record shows",
-               f"Four facts from {n_ev:,} recall events published by the FDA between "
-               f"{d.provenance['report_date_range'][0][:4]} and {d.provenance['report_date_range'][1][:4]}.")
     ui.findings([
         (f"1 in {round(1 / share_i)}", "recall events is Class I: a reasonable chance of serious harm or death.", "coral"),
         (f"{cats.iloc[:3].sum() * 100:.0f}%", f"of recalls come from three failure types: {top3[0]}, {top3[1]} and {top3[2]}.", "teal"),
@@ -161,41 +182,44 @@ def overview():
         (f"{(per_firm > 1).mean() * 100:.0f}%", "of recalling firms recalled more than once. Repeat recallers are where "
                                                 "a buyer's questions should start.", "amber")])
 
-    # ---- explore
-    years = sorted(int(y) for y in d.recalls.year.dropna().unique())
-    ui.section("How serious were the recalls, year by year?")
+    ui.section("How serious were the recalls, year by year?",
+               "The FDA grades every recall by how much harm the problem could cause.")
     ui.class_legend()
-    with st.expander("Filter the charts below by year or class"):
-        f1, f2 = st.columns([2, 1])
-        yr = f1.slider("Publication year", years[0], years[-1], (years[0], years[-1]))
-        all_classes = ["Class I", "Class II", "Class III"]
-        classes = f2.multiselect("Recall class", all_classes, default=all_classes)
-    f = d.recalls[d.recalls.year.between(*yr) & (d.recalls.classification.isin(classes)
-                                                 | ~d.recalls.classification.isin(all_classes))]
-    ev = f.drop_duplicates("event_id")
-    per_year = ev[ev.classification.isin(classes)].groupby(["year", "classification"]).size().reset_index(name="events")
+    per_year = EVENTS[EVENTS.classification.isin(ALL_CLASSES)].groupby(["year", "classification"]).size().reset_index(name="events")
     st.subheader("Class II recalls dominate every year; Class I is the smaller, most serious share")
     ui.chart(alt.Chart(per_year).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("events:Q", title="Recall events"),
         color=alt.Color("classification:N", title=None, scale=ui.CLASS_COLOURS),
         order=alt.Order("classification:N", sort="ascending"),
-        tooltip=["year", "classification", "events"]), 300)
+        tooltip=["year", "classification", "events"]), 320)
+    ui.footer(d.source)
 
-    ui.section("What goes wrong, and in which products?")
+
+def what_goes_wrong():
+    ui.page_header("What goes wrong", icon="🧪", text=
+                   "Which quality failures cause recalls, and which kinds of products are affected most. "
+                   "Every recall reason was sorted into a failure type by the machine-learning classifier.")
+    f, ev, _ = record_filter("wgw")
     a, b = st.columns(2, gap="large")
     with a:
         c = ev.analysis_category.map(nice_cat).value_counts().rename_axis("failure").reset_index(name="events")
         st.subheader(f"{c.failure.iloc[0]} and {c.failure.iloc[1].lower()} lead")
-        ui.ranked_bars(c, "events", "failure", highlight=2, height=340)
+        ui.ranked_bars(c, "events", "failure", highlight=2, height=360)
     with b:
         g = ev.product_group.value_counts().rename_axis("dosage form").reset_index(name="events")
         st.subheader(f"{g['dosage form'].iloc[0]} and {g['dosage form'].iloc[1].lower()} products lead")
-        ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.BLUE, height=340)
+        ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.BLUE, height=360)
+    ui.note("<b>Reading the charts:</b> the two largest groups are coloured; the rest are grey. Counts are recall events "
+            "(one recall decision), not individual products.", "info")
+    ui.footer(d.source)
 
-    ui.section("Which firms recall most often?",
-               "The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
-               "so treat a name as the start of a question, not a conclusion.")
+
+def firms_and_records():
+    ui.page_header("Firms and records", icon="🏭", text=
+                   "Which firms recall most often, and a search across every recall record.")
+    f, ev, _ = record_filter("firms")
+    st.subheader("Firms with the most recall events")
     top = (ev.groupby("firm_std").agg(events=("event_id", "nunique"),
                                       class_I=("classification", lambda s: int((s == "Class I").sum())))
            .sort_values("events", ascending=False).head(10).reset_index())
@@ -204,30 +228,32 @@ def overview():
         "firm_std": st.column_config.TextColumn("Recalling firm", width="large"),
         "events": st.column_config.ProgressColumn("Recall events", format="%d", min_value=0, max_value=int(top.events.max())),
         "class_I": st.column_config.NumberColumn("Of which Class I", width="small")})
+    ui.note("The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
+            "so treat a name as the start of a question, not a conclusion.", "limit")
 
-    with st.expander("Search individual recall records"):
-        q = st.text_input("Product, firm or reason contains", placeholder="e.g. metformin, benzene, Teva")
-        if q:
-            hit = f[f.product_description.str.contains(q, case=False, na=False, regex=False)
-                    | f.recalling_firm.str.contains(q, case=False, na=False, regex=False)
-                    | f.reason_clean.str.contains(q, case=False, na=False, regex=False)]
-            st.caption(f"{len(hit):,} records match; showing the newest 500.")
-            out = hit.sort_values("report_date", ascending=False)[
-                ["recall_number", "report_date", "classification", "recalling_firm", "analysis_category",
-                 "product_group", "reason_clean", "product_description"]].head(500)
-            out["analysis_category"] = out.analysis_category.map(nice_cat)
-            st.dataframe(out, hide_index=True, width="stretch")
-            st.download_button("Download these records (CSV)", out.to_csv(index=False), "recall_search.csv", "text/csv")
+    ui.section("Search recall records", "Look up any product, firm or recall reason.")
+    q = st.text_input("Product, firm or reason contains", placeholder="e.g. metformin, benzene, Teva")
+    if q:
+        hit = f[f.product_description.str.contains(q, case=False, na=False, regex=False)
+                | f.recalling_firm.str.contains(q, case=False, na=False, regex=False)
+                | f.reason_clean.str.contains(q, case=False, na=False, regex=False)]
+        st.caption(f"{len(hit):,} records match; showing the newest 500.")
+        out = hit.sort_values("report_date", ascending=False)[
+            ["recall_number", "report_date", "classification", "recalling_firm", "analysis_category",
+             "product_group", "reason_clean", "product_description"]].head(500)
+        out["analysis_category"] = out.analysis_category.map(nice_cat)
+        st.dataframe(out, hide_index=True, width="stretch")
+        st.download_button("Download these records (CSV)", out.to_csv(index=False), "recall_search.csv", "text/csv")
     ui.footer(d.source)
 
 
-# ============================================================ Signals
-def signals():
-    ui.page_header("Recall signals", icon="📡", text=
+# ============================================================ Recall signals
+def latest_signals():
+    ui.page_header("Latest signals", icon="📡", text=
                    "A signal means a month had clearly more recall events than usual for a failure type, dosage form or firm. "
                    "It is a prompt to look closer, not a confirmed quality failure.")
     ui.steps(["Choose the period and what to watch", "Read why each month was flagged",
-              "Open a trend to see the signal against the usual level"])
+              "Open Trends and sensitivity to see any series month by month"])
 
     al_all = d.alerts.copy()
     cons = al_all[al_all.n_methods >= 2].sort_values(["month", "n_methods"], ascending=False)
@@ -293,10 +319,16 @@ def signals():
                     "Class I share and number of firms involved.")
         st.caption("Every method needs at least 3 events in the month and more than the 12-month average.")
 
+    ui.footer(d.source)
+
+
+def signal_trends():
+    ui.page_header("Trends and sensitivity", icon="📈", text=
+                   "See any failure type or dosage form month by month, and test how strict the signal rules should be.")
     ms = d.monthly.copy()
-    ui.section("Try a different sensitivity",
-               "Stricter settings mean fewer alerts to review but more problems missed. Move the sliders to see the trade-off "
-               "for failure types and dosage forms.")
+    st.subheader("Try a different sensitivity")
+    st.caption("Stricter settings mean fewer alerts to review but more problems missed. Move the sliders to see the "
+               "trade-off for failure types and dosage forms.")
     s1, s2, s3 = st.columns(3)
     z = s1.slider("Z-score threshold", 2.0, 4.0, 3.0, 0.5)
     k = s2.slider("IQR fence multiplier", 1.0, 3.0, 1.5, 0.5)
@@ -333,9 +365,15 @@ def signals():
     st.caption("Teal line: recall events each month. Dashed line: the usual level (average of the previous 12 months). "
                "Amber dots: months that signal at the settings above.")
 
+    ui.footer(d.source)
+
+
+def backtest_page():
+    ui.page_header("Back-test", icon="🧭", text=
+                   "Would PharmaSignal have recognised real recall crises? We replayed six known events using only the data "
+                   "available at the time.")
     if len(d.backtest):
-        ui.section("Would it have caught real crises?",
-                   "We replayed six known recall crises, such as nitrosamines in sartans and methanol in hand sanitisers.")
+        st.subheader("Crises detected, and the alert workload, for each method")
         ms_ = d.method_summary.copy()
         ms_["method"] = ms_.method.map({"iqr": "IQR fence", "zscore": "Z-score", "iforest": "Isolation Forest",
                                         "consensus": "Consensus (2+ agree)"}).fillna(ms_.method)
@@ -348,6 +386,10 @@ def signals():
         ui.note("<b>What this means:</b> signals arrived in the crisis peak month, about 2 months after the news, mainly "
                 "because the FDA publishes recalls weeks after they start. PharmaSignal recognises clusters; it does not "
                 "predict them. Slow-building problems such as benzene in sprays produced no monthly spike.", "limit")
+    figs = core.OUT / "figures"
+    if (figs / "backtests.png").exists():
+        ui.section("The six crises, month by month")
+        st.image(str(figs / "backtests.png"), width="stretch")
     ui.footer(d.source)
 
 
@@ -616,8 +658,8 @@ def evaluation_view(ev):
     return ev
 
 
-def about():
-    ui.page_header("About PharmaSignal", icon="ℹ️", text="What the tool does, how well it works, what it cannot tell you, and who built it.")
+def how_it_works():
+    ui.page_header("How it works", icon="⚙️", text="How PharmaSignal turns recall records into evidence, how well it works, and what it cannot tell you.")
     ui.section("How it works")
     ui.steps([f"Take a fixed snapshot of {d.provenance['records']:,} FDA recall records",
               "Clean firm names and assign each product a dosage form",
@@ -636,10 +678,6 @@ def about():
     ui.section("How well it works")
     if len(d.evaluation):
         ui.eval_table(evaluation_view(d.evaluation))
-    figs = core.OUT / "figures"
-    if (figs / "backtests.png").exists():
-        with st.expander("Back-test charts for the six known crises"):
-            st.image(str(figs / "backtests.png"), width="stretch")
 
     ui.section("What it cannot tell you")
     ui.note("""<ul style="margin:0;padding-left:1.1rem">
@@ -654,13 +692,18 @@ def about():
                  column_config={"Term": st.column_config.TextColumn(width="small"),
                                 "Meaning": st.column_config.TextColumn(width="large")})
 
-    ui.section("Use of AI")
-    st.markdown("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook and "
-                "checked with a blind human review of 150 records. Claude also assisted with code and documentation, and "
-                "writes the assistant's answers from the evidence shown.")
+    ui.footer(d.source)
 
+
+def team_feedback():
+    ui.page_header("Team and feedback", icon="👥", text="Who built PharmaSignal, how AI was used, and how to tell us what you think.")
     ui.section("The team")
     ui.team_cards(ui.TEAM)
+
+    ui.section("Use of AI")
+    st.markdown("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook and "
+                "are being checked with a blind human review of 150 records. Claude also assisted with code and documentation, and "
+                "writes the assistant's answers from the evidence shown.")
 
     ui.section("Tell us what you think")
     with st.form("feedback", clear_on_submit=True):
@@ -683,12 +726,22 @@ def about():
 
 
 # ============================================================ navigation and sidebar
-home_pg = st.Page(overview, title="Overview", icon=":material/dashboard:", default=True)
-signals_pg = st.Page(signals, title="Recall signals", icon=":material/monitoring:", url_path="signals")
+home_pg = st.Page(home, title="Home", icon=":material/home:", default=True)
+findings_pg = st.Page(key_findings, title="Key findings", icon=":material/insights:", url_path="findings")
+failures_pg = st.Page(what_goes_wrong, title="What goes wrong", icon=":material/science:", url_path="failures")
+firms_pg = st.Page(firms_and_records, title="Firms and records", icon=":material/factory:", url_path="firms")
+latest_pg = st.Page(latest_signals, title="Latest signals", icon=":material/notifications_active:", url_path="signals")
+trends_pg = st.Page(signal_trends, title="Trends and sensitivity", icon=":material/show_chart:", url_path="trends")
+backtest_pg = st.Page(backtest_page, title="Back-test", icon=":material/history:", url_path="backtest")
 tender_pg = st.Page(tender, title="Tender screening", icon=":material/fact_check:", url_path="tender")
 ask_pg = st.Page(assistant, title="AI assistant", icon=":material/smart_toy:", url_path="ask")
-about_pg = st.Page(about, title="About and methods", icon=":material/info:", url_path="about")
-pg = st.navigation({"Explore": [home_pg, signals_pg], "Decide": [tender_pg, ask_pg], "Project": [about_pg]})
+how_pg = st.Page(how_it_works, title="How it works", icon=":material/settings:", url_path="how")
+team_pg = st.Page(team_feedback, title="Team and feedback", icon=":material/groups:", url_path="team")
+pg = st.navigation({"Start": [home_pg],
+                    "Explore the data": [findings_pg, failures_pg, firms_pg],
+                    "Recall signals": [latest_pg, trends_pg, backtest_pg],
+                    "Decide": [tender_pg, ask_pg],
+                    "About": [how_pg, team_pg]})
 
 with st.sidebar:
     ai_on = llm is not None

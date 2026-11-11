@@ -76,15 +76,21 @@ Live app: *add the URL here after deploying*
 
 ## Streamlit app
 
-An interactive web app built on the notebook's results, with five pages:
+An interactive web app built on the notebook's results, with eleven short pages in five groups:
 
-| Page | What it does |
-|---|---|
-| **Overview** | Who the tool is for, headline numbers, recalls per year by class, failure types, dosage forms, top firms and record search |
-| **Recall signals** | Surge signals by failure type, dosage form and firm, a sensitivity what-if, a trend chart and the back-test |
-| **Tender screening** | Type or upload a bidder list, screen it against FDA records, download a summary and evidence briefs; watch list of firms |
-| **AI assistant** | Plain-English questions answered from the data only, with sources and the fact-checker |
-| **About and methods** | How it works, evaluation results, limitations, use of AI, the team and a feedback form |
+| Group | Page | What it shows |
+|---|---|---|
+| Start | **Home** | What PharmaSignal AI is, who it is for, and where to start |
+| Explore the data | **Key findings** | Four headline facts and recall severity year by year |
+| | **What goes wrong** | Failure types and dosage forms behind recalls |
+| | **Firms and records** | Firms with the most recalls, and a search across all records |
+| Recall signals | **Latest signals** | Recent surges in recalls, explained in plain words |
+| | **Trends and sensitivity** | Any series month by month, with sliders to test the signal rules |
+| | **Back-test** | Whether the detectors would have recognised six real crises |
+| Decide | **Tender screening** | Type or upload bidders; evidence cards, briefs and downloads |
+| | **AI assistant** | Plain-English questions answered from the data, checked by code |
+| About | **How it works** | Method, evaluation results, limitations and key terms |
+| | **Team and feedback** | The team and roles, use of AI, and a feedback form |
 
 1. **Run the notebook once** (Restart & Run All). It creates the `outputs/` folder the app reads; the app does not retrain anything.
 2. From the project folder, start the app:
