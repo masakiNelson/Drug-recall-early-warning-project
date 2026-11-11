@@ -40,11 +40,11 @@ CATEGORY_WORDS = {"contamina": "CONTAMINATION_STERILITY", "steril": "CONTAMINATI
                   "nitrosamine": "IMPURITIES", "ndma": "IMPURITIES", "potency": "POTENCY_STRENGTH", "dissolution": "DISSOLUTION",
                   "cgmp": "CGMP_DEVIATION", "label": "LABELING_PACKAGING", "stability": "STABILITY", "particulate": "FOREIGN_MATTER",
                   "foreign": "FOREIGN_MATTER", "undeclared": "UNAPPROVED_UNDECLARED"}
-NOTE_INTENTS = {"note-procurement-checks": r"procure|tender|award|supplier|supply contract|purchas|buy|kemsa|meds",
-                "note-limitations": r"limitation|kenya|relevan|reliab",
+NOTE_INTENTS = {"note-procurement-checks": r"procure|tender|award|supplier|supply contract|purchas|buy|checks? should",
+                "note-limitations": r"limitation|relevan|reliab|other market|outside the us",
                 "note-methods": r"how (do|does|did) (you|the system|it) (detect|work|classif)|method"}
-SYSTEM_PROMPT = '''You are a pharmaceutical recall intelligence assistant for regulators and procurement teams in Kenya
-(PPB, KEMSA, MEDS, hospital pharmacies). Follow these rules strictly:
+SYSTEM_PROMPT = '''You are PharmaSignal AI, a pharmaceutical recall intelligence assistant for medicines regulators and
+procurement teams (hospital pharmacies, supply agencies, distributors). Follow these rules strictly:
 1. Use ONLY the STRUCTURED FACTS and RETRIEVED EVIDENCE provided. Never invent firms, recall numbers, dates or numbers.
 2. Structure: "Facts from the data" (cite recall numbers or document IDs in brackets), then "What this may mean"
    (clearly interpretation), then "Limitations and checks to make".
@@ -52,8 +52,25 @@ SYSTEM_PROMPT = '''You are a pharmaceutical recall intelligence assistant for re
 4. An anomaly alert is a signal for investigation, NOT a confirmed quality failure.
 5. Never recommend approving or rejecting a supplier and never call a product or firm unsafe. Give evidence and checks; humans decide.
 6. The recalling firm may not be the manufacturer; do not infer sites or countries from names.
-7. This is US FDA data up to the snapshot date; say so when relevance to Kenya is limited.
+7. This is US FDA data up to the snapshot date; say so when relevance to other markets is limited.
 Write in plain language for pharmacists, under 300 words.'''
+
+
+NOTE_TEXT = {
+    "note-limitations": ("Limitations of US FDA recall data for procurement decisions: it covers products sold in the US "
+                         "market only; a firm may supply other markets from different sites or with different products; no "
+                         "FDA recall does not prove good quality; the recalling firm is often a repackager, distributor or "
+                         "compounding pharmacy rather than the manufacturer; FDA publishes recalls several weeks after they "
+                         "start; national regulator records, WHO prequalification and GMP inspection reports must be "
+                         "checked separately."),
+    "note-procurement-checks": ("Checks before awarding a pharmaceutical supply contract (decision support, not a decision): "
+                                "confirm the actual manufacturing site; verify registration of the product and site with the "
+                                "national medicines regulator; obtain the current GMP certificate or inspection outcome; "
+                                "request certificates of analysis; for nitrosamine-prone products request a nitrosamine risk "
+                                "assessment; for sterile products request sterility assurance evidence; request stability data "
+                                "for the climatic zone where the product will be used; consider independent testing at an "
+                                "accredited quality control laboratory."),
+}
 
 
 def standardise_firm(name):
@@ -131,6 +148,9 @@ def load_data():
                         | {"acetaminophen"})
 
     store = json.loads((OUT / "vector_db" / "documents.json").read_text())
+    for note_id, text in NOTE_TEXT.items():                 # app-wide wording of the reference notes
+        if note_id in store["ids"]:
+            store["documents"][store["ids"].index(note_id)] = text
     embed, vectors, max_distance, method = build_retriever(store["documents"])
 
     return PharmaData(con=con, provenance=provenance, recalls=recalls, fe=fe, alerts=alerts, monthly=monthly,
@@ -186,8 +206,8 @@ def related_entities(d: PharmaData, firm):
 
 def checks_for(firm_row, product, product_recalls):
     checks = ["Confirm the actual manufacturing site of the tendered product (the recalling firm may be a repackager or distributor).",
-              "Verify Pharmacy and Poisons Board (PPB) registration of the product and of that manufacturing site.",
-              "Request the current GMP certificate / latest inspection outcome for the site (PPB, WHO PQ or a stringent regulator).",
+              "Verify registration of the product and of that manufacturing site with the national medicines regulator.",
+              "Request the current GMP certificate / latest inspection outcome for the site (national regulator, WHO prequalification or a stringent regulatory authority).",
               "Request certificates of analysis for the batches to be supplied."]
     failures = (firm_row.top_failures if firm_row is not None else "") + " " + \
         " ".join(product_recalls.analysis_category if len(product_recalls) else [])
@@ -196,7 +216,7 @@ def checks_for(firm_row, product, product_recalls):
     if "CONTAMINATION_STERILITY" in failures:
         checks.append("Request sterility-assurance evidence (media fills, environmental monitoring) for sterile products.")
     if "DISSOLUTION" in failures or "STABILITY" in failures:
-        checks.append("Request dissolution profiles and real-time stability data covering the full shelf life (Zone IVb conditions for Kenya).")
+        checks.append("Request dissolution profiles and real-time stability data covering the full shelf life under the climatic zone where it will be used.")
     if "LABELING_PACKAGING" in failures:
         checks.append("Inspect labelling/packaging samples and ask how line clearance prevents mix-ups.")
     if firm_row is not None and firm_row.class_I_events_12m > 0:

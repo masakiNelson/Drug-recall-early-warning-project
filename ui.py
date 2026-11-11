@@ -17,14 +17,14 @@ PALETTES = {
         AMBER="#DB8E1C", AMBER_SOFT="#FCF0DA", AMBER_TEXT="#8A5300",
         CORAL="#C0412A", CORAL_SOFT="#FBE6E1", CORAL_TEXT="#9E2F1B",
         BLUE="#1F5F99", BLUE_SOFT="#E3EEF8", MIST="#A3B7C9", GREY_SOFT="#E9EFF4",
-        HERO="#0B2239", HERO_GLOW="rgba(45,191,169,0.28)", GRID="#E3EAF0"),
+        HERO="#0B2239", HERO_GLOW="rgba(45,191,169,0.28)", GRID="#E3EAF0", SIDEBAR="#0B2239"),
     "dark": dict(
         BG="#0B1826", CARD="#12253A", INK="#F2F7FB", TEXT="#DCE6EF", MUTED="#AFC1D1", LINE="#27425D", SOFTLINE="#1D3550",
         TEAL="#2EC4AE", TEAL_SOFT="#103B3A", TEAL_TEXT="#7BE3D1", TEAL_LIGHT="#7BE3D1",
         AMBER="#F2AE45", AMBER_SOFT="#3A2C12", AMBER_TEXT="#F7C979",
         CORAL="#F2785F", CORAL_SOFT="#3D1D17", CORAL_TEXT="#F8A493",
         BLUE="#7FB4E8", BLUE_SOFT="#16304A", MIST="#4E6A85", GREY_SOFT="#1A3048",
-        HERO="#102F4B", HERO_GLOW="rgba(46,196,174,0.30)", GRID="#1E3650"),
+        HERO="#102F4B", HERO_GLOW="rgba(46,196,174,0.30)", GRID="#1E3650", SIDEBAR="#07111C"),
 }
 MODE = "light"
 P = PALETTES[MODE]
@@ -240,6 +240,27 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .stMain [data-testid="stPageLink"] a p, .stMain [data-testid="stPageLink"] a span {{ font-weight: 600; color: {p['INK']} !important; }}
 .stMain button[kind="primary"] {{ background: {p['TEAL']}; border-color: {p['TEAL']}; color: #FFFFFF; font-weight: 600; }}
 .stMain button[kind="primary"]:hover {{ filter: brightness(1.08); }}
+/* evaluation table */
+.ps-eval {{ width: 100%; border-collapse: separate; border-spacing: 0; background: {p['CARD']}; border: 1px solid {p['LINE']};
+           border-radius: 14px; overflow: hidden; font-size: 0.94rem; }}
+.ps-eval th {{ text-align: left; color: {p['MUTED']}; font-weight: 600; padding: 11px 14px; border-bottom: 1px solid {p['LINE']};
+              background: {p['GREY_SOFT']}; }}
+.ps-eval td {{ color: {p['TEXT']}; padding: 11px 14px; border-bottom: 1px solid {p['SOFTLINE']}; vertical-align: top; line-height: 1.45; }}
+.ps-eval tr:last-child td {{ border-bottom: none; }}
+.ps-eval td.c {{ color: {p['INK']}; font-weight: 600; white-space: nowrap; }}
+[data-testid="stHeader"] {{ background: transparent !important; }}
+
+/* sidebar: styled here as well as in config.toml, so it stays readable even if the theme file is not loaded */
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {{ background-color: {p['SIDEBAR']} !important; }}
+[data-testid="stSidebar"] [data-testid="stSidebarNav"] span, [data-testid="stSidebar"] [data-testid="stSidebarNavLink"] span,
+[data-testid="stSidebar"] [data-testid="stNavSectionHeader"], [data-testid="stSidebar"] [data-testid="stNavSectionHeader"] span,
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] {{ color: #DCE6EF !important; }}
+[data-testid="stSidebar"] [data-testid="stNavSectionHeader"] {{ color: #93AEC4 !important; font-weight: 600; }}
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"]:hover {{ background-color: rgba(255,255,255,0.08) !important; }}
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] {{ background-color: rgba(46,196,174,0.22) !important; }}
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: #FFFFFF !important; font-weight: 600; }}
+[data-testid="stSidebar"] hr, [data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] {{ border-color: rgba(255,255,255,0.15) !important; }}
+[data-testid="stSidebar"] button svg, [data-testid="stSidebarCollapseButton"] svg {{ color: #DCE6EF !important; fill: #DCE6EF; }}
 [data-testid="stSidebar"] .ps-side {{ font-size: 0.86rem; color: #C9D7E3; line-height: 1.55; }}
 [data-testid="stSidebar"] .ps-side b {{ color: #FFFFFF; font-weight: 600; }}
 [data-testid="stSidebar"] .ps-side .role {{ color: #93AEC4; font-size: 0.8rem; }}
@@ -384,3 +405,14 @@ def note(text, kind="info"):
 def footer(source):
     _html(f'<div class="ps-foot">PharmaSignal AI, a capstone group project. Data: {esc(source)}. '
           'It gives evidence for people to weigh and never a verdict on a medicine or supplier.</div>')
+
+
+STATUS_TONE = {"Met": "teal", "Done": "teal", "Checked live": "teal", "Scheduled": "grey"}
+
+
+def eval_table(df):
+    rows = "".join(
+        f'<tr><td class="c">{esc(r.component)}</td><td>{esc(r.target)}</td><td>{esc(r.achieved)}</td>'
+        f'<td>{chip(r.status, STATUS_TONE.get(r.status, "amber"))}</td></tr>' for r in df.itertuples())
+    _html(f'<table class="ps-eval"><thead><tr><th>Component</th><th>Target</th><th>Result</th><th>Status</th></tr></thead>'
+          f'<tbody>{rows}</tbody></table>')

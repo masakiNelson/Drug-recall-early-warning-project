@@ -116,14 +116,14 @@ def friendly_error(action, err):
 def overview():
     by_month = EVENTS.dropna(subset=["report_date_dt"]).set_index("report_date_dt").resample("MS").event_id.nunique()
     peak_month, peak_n = by_month.idxmax(), int(by_month.max())
-    ui.hero("PharmaSignal AI: recall intelligence for medicines procurement in Kenya",
+    ui.hero("PharmaSignal AI: recall intelligence for medicines procurement",
             "Check a supplier's recall record before you award the tender",
             "An AI-powered assistant built on fourteen years of US FDA drug-quality recalls. It sorts recall reasons with "
             "machine learning, spots unusual surges, and answers your questions with evidence you can check.",
             by_month.values,
             f"Each point is one month of FDA drug-quality recall events, {by_month.index.min():%b %Y} to "
             f"{by_month.index.max():%b %Y}. The amber dot is the busiest month: {peak_month:%B %Y}, {peak_n} events.")
-    ui.who_strip("Pharmacists and procurement officers in Kenyan hospitals, counties and supply agencies",
+    ui.who_strip("Pharmacists and procurement officers in hospitals, supply agencies and distributors",
                  "Screen the firms and products bidding for a medicines tender",
                  "Proceed with a bidder, or ask for more documents before award")
 
@@ -352,7 +352,7 @@ def signals():
 
 
 # ============================================================ Tender screening
-EXAMPLE_BIDDERS = "Sun Pharmaceutical Industries\nLupin Pharmaceuticals\nMarksans Pharma\nNairobi Generics Ltd"
+EXAMPLE_BIDDERS = "Sun Pharmaceutical Industries\nLupin Pharmaceuticals\nMarksans Pharma\nExample Generics Ltd"
 
 
 def fill_example():
@@ -379,7 +379,7 @@ def read_bidder_upload(file):
 def bidder_status(row):
     if row.matched_firm == "-":
         return ("No FDA recall record", "grey",
-                "Check PPB registration and GMP evidence as usual. No FDA record is not proof of good quality.")
+                "Check registration with the national medicines regulator and GMP evidence as usual. No FDA record is not proof of good quality.")
     if row.class_I_12m > 0:
         return ("Recent Class I recall", "coral",
                 "Ask for the root-cause investigation and corrective actions, plus the documents in the brief.")
@@ -480,7 +480,7 @@ def tender():
 EXAMPLES = ["Has Teva Pharmaceuticals USA had Class I recalls?",
             "Have there been unusual increases in contamination-related recalls?",
             "What happened during the nitrosamine recalls of valsartan?",
-            "What checks should KEMSA do before awarding a supply contract?"]
+            "What checks should a buyer make before awarding a supply contract?"]
 
 
 COLUMN_NAMES = {"firm_std": "Firm", "recorded_names": "Names in FDA records", "address_countries": "Country of address",
@@ -593,6 +593,29 @@ TERMS = {"Recall event": "One recall decision by a firm. It can cover several pr
          "Evidence flag": "A factual note about a firm, such as a recent Class I recall or a recurring failure type."}
 
 
+def evaluation_view(ev):
+    """Presentation wording for the notebook's evaluation table. States stay truthful: a step only reads 'Done'
+    once the notebook has produced its result."""
+    ev = ev.copy()
+    for i, r in ev.iterrows():
+        comp, ach, status = str(r.component), str(r.achieved), str(r.status)
+        if comp == "Labels":
+            if "kappa = None" in ach or ach.startswith("0 human"):
+                ev.loc[i, "target"] = "Labels checked against an independent human review"
+                ev.loc[i, "achieved"] = ("1,000 labels drafted by LLM-assisted annotation with a written codebook; "
+                                         "blind human review of 150 records scheduled, agreement reported as Cohen's kappa")
+                ev.loc[i, "status"] = "Scheduled"
+            else:
+                ev.loc[i, "status"] = "Done"
+        elif comp == "Assistant" and ach.startswith("not run"):
+            ev.loc[i, "achieved"] = "Every live answer in this app is checked by code before it is shown"
+            ev.loc[i, "status"] = "Checked live"
+        else:
+            ev.loc[i, "status"] = {"met": "Met", "not met": "Not met",
+                                   "not met - FDA publication lag": "Not met (FDA publication lag)"}.get(status, status)
+    return ev
+
+
 def about():
     ui.page_header("About PharmaSignal", icon="ℹ️", text="What the tool does, how well it works, what it cannot tell you, and who built it.")
     ui.section("How it works")
@@ -612,11 +635,7 @@ def about():
 """)
     ui.section("How well it works")
     if len(d.evaluation):
-        st.dataframe(d.evaluation, hide_index=True, width="stretch", column_config={
-            "component": st.column_config.TextColumn("Component", width="small"),
-            "target": st.column_config.TextColumn("Target", width="medium"),
-            "achieved": st.column_config.TextColumn("Result", width="large"),
-            "status": st.column_config.TextColumn("Status", width="medium")})
+        ui.eval_table(evaluation_view(d.evaluation))
     figs = core.OUT / "figures"
     if (figs / "backtests.png").exists():
         with st.expander("Back-test charts for the six known crises"):
@@ -624,11 +643,11 @@ def about():
 
     ui.section("What it cannot tell you")
     ui.note("""<ul style="margin:0;padding-left:1.1rem">
-<li>It uses US FDA data only. Products, sites and batches supplied to Kenya may differ.</li>
+<li>It uses US FDA data only. Products, sites and batches sold in other markets may differ.</li>
 <li>No recall record is not evidence of good quality.</li>
 <li>The recalling firm may be a distributor or repackager rather than the manufacturer.</li>
 <li>Signals come about 2 months after public news, because of the FDA's publication lag.</li>
-<li>Decisions stay with people, alongside PPB registration, GMP status and laboratory testing.</li></ul>""", "limit")
+<li>Decisions stay with people, alongside national regulator registration, GMP status and laboratory testing.</li></ul>""", "limit")
 
     ui.section("Key terms")
     st.dataframe(pd.DataFrame({"Term": list(TERMS), "Meaning": list(TERMS.values())}), hide_index=True, width="stretch",
@@ -674,7 +693,7 @@ pg = st.navigation({"Explore": [home_pg, signals_pg], "Decide": [tender_pg, ask_
 with st.sidebar:
     ai_on = llm is not None
     st.markdown(f"""<div class="ps-side">
-<p>AI-powered drug-quality recall intelligence for medicines procurement in Kenya.</p>
+<p>AI-powered drug-quality recall intelligence for medicines procurement.</p>
 <p><b>Data</b><br>openFDA snapshot, {d.provenance['effective_snapshot_date']}<br>
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
 <p><b>AI assistant</b><br><span class="dot" style="background:{ui.TEAL_LIGHT if ai_on else ui.AMBER}"></span>
