@@ -2,6 +2,9 @@
 
 Run the notebook once (it creates outputs/), then:   streamlit run app.py
 """
+import base64
+import hmac
+import io
 import os
 import re
 from datetime import datetime, timezone
@@ -10,6 +13,7 @@ import altair as alt
 import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 
 import pharmasignal_core as core
@@ -121,19 +125,44 @@ def home():
             by_month.values,
             f"Monthly FDA drug-quality recall events, {by_month.index.min():%b %Y} to {by_month.index.max():%b %Y}. "
             f"Busiest month (amber): {peak_month:%b %Y}, {peak_n} events.")
-    ui.who_strip("Pharmacists and procurement officers in hospitals, supply agencies and distributors",
-                 "Screen the firms and products bidding for a medicines tender",
-                 "Proceed with a bidder, or ask for more documents before award")
+    ui.who_strip([
+        ("groups", "Who it is for", "",
+         ["Hospital pharmacists", "Procurement officers", "Supply agencies", "Distributors", "Regulators",
+          "Quality assurance teams"]),
+        ("build", "What you do with it",
+         "Check a supplier's recall history, spot unusual surges in recalls, and ask questions in plain English, "
+         "all before you buy.", None),
+        ("gavel", "The decision it supports",
+         "Buy from a supplier with confidence, or ask them for more quality documents first.", None)])
 
-    ui.section("Where would you like to start?")
-    st.markdown('<p class="ps-infolabel">Click any card to open that page.</p>', unsafe_allow_html=True)
-    links = [(findings_pg, "Recall Snapshot", ":material/insights:"), (failures_pg, "Failure Patterns", ":material/science:"),
-             (firms_pg, "Firm Directory", ":material/factory:"), (latest_pg, "Signal Radar", ":material/radar:"),
-             (tender_pg, "Tender Screener", ":material/fact_check:"), (ask_pg, "Ask PharmaSignal AI", ":material/smart_toy:")]
-    for row in (links[:3], links[3:]):
-        cols = st.columns(3)
-        for c, (page, label, icon) in zip(cols, row):
-            c.page_link(page, label=label, icon=icon, width="stretch")
+    ui.section("Your route through PharmaSignal",
+               "Follow the numbered buttons from 1 to 10 for the full story, or jump straight to the step you need.")
+    stages = [("Understand the history", "Steps 1 to 3", [
+                  (findings_pg, "The big picture: how many recalls, how serious, and how that changed each year."),
+                  (failures_pg, "What goes wrong most often, such as contamination, impurities or failed sterility."),
+                  (firms_pg, "Look up any firm's recall record and search individual recall reports.")]),
+              ("Spot the warning signs", "Steps 4 to 6", [
+                  (latest_pg, "This month's unusual jumps in recalls, ranked by how many detectors agree."),
+                  (trends_pg, "Follow a failure type over the years and test how sensitive the alerts are."),
+                  (backtest_pg, "Would the detectors have caught six real recall crises early? See the replay.")]),
+              ("Decide on a supplier", "Steps 7 and 8", [
+                  (tender_pg, "Enter your shortlist of suppliers and a product, and get a colour-coded recall check."),
+                  (ask_pg, "Ask a question in plain English and get an answer backed by recall numbers.")]),
+              ("Check the evidence", "Steps 9 and 10", [
+                  (how_pg, "How the models work, how well they perform, and what they cannot tell you."),
+                  (team_pg, "Meet the team and tell us what to improve.")])]
+    st.markdown(ui.journey_css(sum(len(s[2]) for s in stages)), unsafe_allow_html=True)
+    n = 0
+    with st.container(key="journey"):
+        cols = st.columns(len(stages), gap="medium")
+        for col, (stage, span, items) in zip(cols, stages):
+            with col:
+                st.markdown(f'<div class="ps-stage">{ui.esc(stage)}<small>{ui.esc(span)}</small></div>', unsafe_allow_html=True)
+                for page, note in items:
+                    n += 1
+                    with st.container(key=f"jstep_{n}"):
+                        st.page_link(page, label=page.title, width="stretch")
+                        st.markdown(f'<p class="ps-stepnote">{ui.esc(note)}</p>', unsafe_allow_html=True)
 
     ui.section("Meet the PharmaSignal AI assistant",
                "Three kinds of AI work together: a machine-learning classifier, anomaly detectors and a language model.")
@@ -141,7 +170,7 @@ def home():
                "The assistant looks up the facts with database queries, finds the closest recall records, and asks Claude "
                "to explain them. Code then checks every number and recall ID before you see the answer. It never "
                "calls a medicine unsafe or tells you to reject a supplier.",
-               "Has Teva Pharmaceuticals USA had Class I recalls?",
+               "Has Teva Pharmaceuticals USA had any Class I recalls?",
                "Facts from the data: 158 recall events, 6 of them Class I, each cited by its recall number. "
                "What this may mean, and the checks to make before award, follow underneath.")
     ui.footer(d.source)
@@ -157,7 +186,7 @@ def record_filter(key):
     with st.expander("Filter by year or recall class", icon=":material/tune:"):
         f1, f2 = st.columns([2, 1])
         yr = f1.slider("Publication year", years[0], years[-1], (years[0], years[-1]), key=f"{key}_yr")
-        classes = f2.multiselect("Recall class", ALL_CLASSES, default=ALL_CLASSES, key=f"{key}_cls")
+        classes = f2.multiselect("Recall class", ALL_CLASSES, default=ALL_CLASSES, key=f"{key}_cls", format_func=ui.with_risk)
     f = d.recalls[d.recalls.year.between(*yr) & (d.recalls.classification.isin(classes)
                                                  | ~d.recalls.classification.isin(ALL_CLASSES))]
     return f, f.drop_duplicates("event_id"), classes
@@ -185,7 +214,8 @@ def key_findings():
                "The FDA grades every recall by how much harm the problem could cause.")
     ui.class_legend()
     per_year = EVENTS[EVENTS.classification.isin(ALL_CLASSES)].groupby(["year", "classification"]).size().reset_index(name="events")
-    st.subheader("Class II recalls dominate every year; Class I is the smaller, most serious share")
+    per_year["classification"] = per_year.classification.map(ui.with_risk)
+    st.subheader(ui.with_risk("Class II recalls dominate every year; Class I is the smaller, most serious share"))
     ui.chart(alt.Chart(per_year).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("events:Q", title="Recall events"),
@@ -248,10 +278,11 @@ def firms_and_records():
             ["report_date", "recall_number", "classification", "recalling_firm", "analysis_category", "product_group",
              "reason_clean", "product_description"]].head(500).copy()
         out["analysis_category"] = out.analysis_category.map(nice_cat)
+        out["classification"] = out.classification.map(ui.with_risk)
         st.dataframe(out, hide_index=True, width="stretch", column_config={
             "report_date": st.column_config.TextColumn("Published", width="small"),
             "recall_number": st.column_config.TextColumn("Recall no.", width="small"),
-            "classification": st.column_config.TextColumn("Class", width="small"),
+            "classification": st.column_config.TextColumn("Class", width="medium"),
             "recalling_firm": st.column_config.TextColumn("Firm", width="medium"),
             "analysis_category": st.column_config.TextColumn("Failure type", width="medium"),
             "product_group": st.column_config.TextColumn("Dosage form", width="small"),
@@ -343,7 +374,7 @@ def latest_signals():
             "month_label": "Month", "kind": "Watching", "name": "Name", "n_events": "Events",
             "hist_mean": st.column_config.NumberColumn("Usual per month", format="%.1f"),
             "times": st.column_config.NumberColumn("× usual", format="%.1f"),
-            "flagged_by": "Flagged by", "class_i": st.column_config.NumberColumn("Class I share", format="%d%%"),
+            "flagged_by": "Flagged by", "class_i": st.column_config.NumberColumn("Class I (high risk) share", format="%d%%"),
             "strength": "Strength"})
         st.download_button("Download signals (CSV)", out.to_csv(index=False), "pharmasignal_signals.csv", "text/csv",
                            icon=":material/download:", type="primary")
@@ -597,17 +628,19 @@ def tender():
             w["flags"] = w["flags"].map(nice_flags)
             st.dataframe(w[["firm_std", "events_12m", "class_I_events_12m", "prior_events_per_year", "alert_months_12m", "flags"]],
                          hide_index=True, width="stretch", column_config={
-                             "firm_std": "Firm", "events_12m": "Events, 12 months", "class_I_events_12m": "Class I",
+                             "firm_std": "Firm", "events_12m": "Events, 12 months", "class_I_events_12m": "Class I (high risk)",
                              "prior_events_per_year": st.column_config.NumberColumn("Usual per year", format="%.1f"),
                              "alert_months_12m": "Signal months", "flags": st.column_config.TextColumn("Evidence flags", width="large")})
     ui.footer(d.source)
 
 
 # ============================================================ Assistant
-EXAMPLES = ["Has Teva Pharmaceuticals USA had Class I recalls?",
-            "Have there been unusual increases in contamination-related recalls?",
-            "What happened during the nitrosamine recalls of valsartan?",
-            "What checks should a buyer make before awarding a supply contract?"]
+EXAMPLES = ["Have any amoxicillin products been recalled, and why?",
+            "Which suppliers had the most recalls in the last 12 months?",
+            "What should I check before buying medicines from a new supplier?",
+            "Has Teva Pharmaceuticals USA had any Class I recalls?",
+            "Has metformin been recalled for NDMA (nitrosamine) impurities?",
+            "Have there been unusual increases in contamination recalls?"]
 
 
 COLUMN_NAMES = {"firm_std": "Firm", "recorded_names": "Names in FDA records", "address_countries": "Country of address",
@@ -621,7 +654,8 @@ COLUMN_NAMES = {"firm_std": "Firm", "recorded_names": "Names in FDA records", "a
 
 
 def tidy(tab):
-    tab = tab.rename(columns=lambda c: COLUMN_NAMES.get(c, str(c).replace("_", " ").capitalize()))
+    tab = tab.rename(columns=lambda c: ui.with_risk(COLUMN_NAMES.get(c, str(c).replace("_", " ").capitalize())))
+    tab = tab.apply(lambda col: col.map(lambda v: ui.with_risk(v) if isinstance(v, str) else v))
     for col in ("Failure type", "Name"):
         if col in tab:
             tab[col] = tab[col].map(lambda v: nice_cat(v) if isinstance(v, str) and v.isupper() else v)
@@ -675,7 +709,7 @@ def assistant():
     clicked = None
     for i, q in enumerate(EXAMPLES):
         with cols[i % 2]:
-            if st.button(q, width="stretch", key=f"askq_{i}", icon=":material/chat_bubble:"):
+            if st.button(ui.with_risk(q), width="stretch", key=f"askq_{i}", icon=":material/chat_bubble:"):
                 clicked = q
     question = st.chat_input("Ask about recalls, firms, products or signals...") or clicked
 
@@ -700,7 +734,7 @@ def assistant():
                 with st.container(key=f"ans_{tone}_{n}_{j}"):
                     if label:
                         st.markdown(f'<div class="ps-anshead {tone}">{label}</div>', unsafe_allow_html=True)
-                    st.markdown(body)
+                    st.markdown(ui.with_risk(body))
             if res["verified"]:
                 st.caption(f":material/verified: Checked: every number and recall ID appears in the evidence. "
                            f"Written by Claude ({core.LLM_MODEL}) from PharmaSignal data only.")
@@ -741,7 +775,8 @@ def assistant():
 
 # ============================================================ About
 TERMS = {"Recall event": "One recall decision by a firm. It can cover several products or strengths.",
-         "Class I, II, III": "FDA severity levels. Class I is the most serious: serious harm or death is reasonably possible.",
+         "Recall class (I, II, III)": "FDA severity levels, shown in this app as Class I (high risk), Class II (medium risk) and "
+                             "Class III (low risk). Class I means serious harm or death is reasonably possible.",
          "Recalling firm": "The company that announced the recall; it may not be the manufacturer.",
          "Signal": "A month with clearly more recall events than the previous 12 months. A prompt to look closer.",
          "Consensus signal": "A signal where at least two of the three detection methods agree.",
@@ -812,6 +847,90 @@ def how_it_works():
     ui.footer(d.source)
 
 
+# ---- feedback storage
+# Streamlit Cloud wipes local files whenever the app restarts, so feedback is saved to GitHub when a token is set:
+# secrets FEEDBACK_GITHUB_TOKEN (fine-grained, Contents: read and write), optional FEEDBACK_REPO and FEEDBACK_BRANCH.
+# Writing to a separate branch means saving feedback never redeploys the app.
+FEEDBACK_TOKEN = secret("FEEDBACK_GITHUB_TOKEN")
+FEEDBACK_REPO = secret("FEEDBACK_REPO", "masakiNelson/drug-recall-early-warning-project")
+FEEDBACK_BRANCH = secret("FEEDBACK_BRANCH", "feedback")
+FEEDBACK_FILE = "feedback/feedback.csv"
+FEEDBACK_COLUMNS = ["time_utc", "stars", "most_useful", "comment"]
+GH = "https://api.github.com"
+
+
+def _gh(method, path, **kw):
+    headers = {"Authorization": f"Bearer {FEEDBACK_TOKEN}", "Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28"}
+    return requests.request(method, f"{GH}{path}", headers=headers, timeout=15, **kw)
+
+
+def _gh_read():
+    """Returns (csv text, sha); ('', None) when the file does not exist yet."""
+    r = _gh("GET", f"/repos/{FEEDBACK_REPO}/contents/{FEEDBACK_FILE}", params={"ref": FEEDBACK_BRANCH})
+    if r.status_code == 404:
+        return "", None
+    r.raise_for_status()
+    body = r.json()
+    return base64.b64decode(body["content"]).decode("utf-8"), body["sha"]
+
+
+def _gh_ensure_branch():
+    if _gh("GET", f"/repos/{FEEDBACK_REPO}/branches/{FEEDBACK_BRANCH}").status_code == 200:
+        return
+    repo = _gh("GET", f"/repos/{FEEDBACK_REPO}")
+    repo.raise_for_status()
+    base = _gh("GET", f"/repos/{FEEDBACK_REPO}/git/ref/heads/{repo.json()['default_branch']}")
+    base.raise_for_status()
+    _gh("POST", f"/repos/{FEEDBACK_REPO}/git/refs",
+        json={"ref": f"refs/heads/{FEEDBACK_BRANCH}", "sha": base.json()["object"]["sha"]}).raise_for_status()
+
+
+def save_feedback(row):
+    """Saves one feedback row. Returns 'github', 'server' or None (not saved)."""
+    line = pd.DataFrame([row], columns=FEEDBACK_COLUMNS)
+    if FEEDBACK_TOKEN:
+        try:
+            _gh_ensure_branch()
+            for _ in range(3):                      # retry if two people send feedback at the same moment
+                text, sha = _gh_read()
+                new = (text if text.endswith("\n") or not text else text + "\n") + line.to_csv(index=False, header=not text)
+                payload = {"message": "Add app feedback", "branch": FEEDBACK_BRANCH,
+                           "content": base64.b64encode(new.encode("utf-8")).decode("ascii")}
+                if sha:
+                    payload["sha"] = sha
+                r = _gh("PUT", f"/repos/{FEEDBACK_REPO}/contents/{FEEDBACK_FILE}", json=payload)
+                if r.status_code in (200, 201):
+                    return "github"
+                if r.status_code not in (409, 422):
+                    break
+        except Exception:
+            pass
+    try:
+        path = core.OUT / "feedback.csv"
+        line.to_csv(path, mode="a", header=not path.exists(), index=False)
+        return "server"
+    except Exception:
+        return None
+
+
+def load_feedback():
+    frames = []
+    if FEEDBACK_TOKEN:
+        try:
+            text, _ = _gh_read()
+            if text.strip():
+                frames.append(pd.read_csv(io.StringIO(text)))
+        except Exception as e:
+            st.caption(f"Could not read the GitHub feedback file ({type(e).__name__}).")
+    path = core.OUT / "feedback.csv"
+    if path.exists():
+        frames.append(pd.read_csv(path))
+    if not frames:
+        return pd.DataFrame(columns=FEEDBACK_COLUMNS)
+    return pd.concat(frames).drop_duplicates().sort_values("time_utc", ascending=False)
+
+
 def team_feedback():
     ui.page_header("Team & Feedback", icon="groups", text=
                    "Who built PharmaSignal, how AI was used, and how you can help us improve it.")
@@ -838,15 +957,38 @@ def team_feedback():
         if rating is None and not comment.strip():
             st.warning("Give a star rating or write a suggestion before sending.")
         else:
-            row = pd.DataFrame([{"time_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                 "stars": "" if rating is None else rating + 1, "most_useful": useful,
-                                 "comment": comment.strip()}])
-            try:
-                path = core.OUT / "feedback.csv"
-                row.to_csv(path, mode="a", header=not path.exists(), index=False)
+            row = {"time_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                   "stars": "" if rating is None else rating + 1, "most_useful": useful, "comment": comment.strip()}
+            with st.spinner("Sending..."):
+                where = save_feedback(row)
+            if where:
                 st.success("Feedback sent. Thank you.")
-            except Exception:
-                st.success("Thank you. Feedback could not be saved on this server, so please also tell the team.")
+            else:
+                st.error("Your feedback could not be saved just now. Please try again, or tell the team directly.")
+    st.caption(":material/lock: Where it goes: " + (
+        "answers are saved to the team's feedback file on GitHub and read by the team. No names are collected."
+        if FEEDBACK_TOKEN else
+        "answers are saved on the app server for the team to read. No names are collected."))
+
+    password = secret("FEEDBACK_PASSWORD")
+    if password:
+        with st.expander("Team only: read the feedback", icon=":material/inbox:"):
+            typed = st.text_input("Team password", type="password", key="fb_pw")
+            if typed and hmac.compare_digest(typed, str(password)):
+                fb = load_feedback()
+                if len(fb):
+                    stars = pd.to_numeric(fb.stars, errors="coerce")
+                    ui.kpis([(f"{len(fb)}", "responses", "teal"),
+                             (f"{stars.mean():.1f} / 5" if stars.notna().any() else "none", "average stars", "blue")])
+                    st.dataframe(fb, hide_index=True, width="stretch", column_config={
+                        "time_utc": "Sent (UTC)", "stars": "Stars", "most_useful": "Most useful",
+                        "comment": st.column_config.TextColumn("Suggestion", width="large")})
+                    st.download_button("Download all feedback (CSV)", fb.to_csv(index=False), "pharmasignal_feedback.csv",
+                                       "text/csv", icon=":material/download:")
+                else:
+                    st.info("No feedback yet.")
+            elif typed:
+                st.error("That password is not right.")
 
     ui.section("Action points", "What the team is doing next, and where your input fits in.")
     ui.actions([
@@ -876,6 +1018,11 @@ pg = st.navigation({"Start": [home_pg],
                     "Early Warning": [latest_pg, trends_pg, backtest_pg],
                     "Decision Tools": [tender_pg, ask_pg],
                     "About the Project": [how_pg, team_pg]})
+
+if "visit_started" not in st.session_state:       # a new visit always opens on Home, whatever link was used
+    st.session_state.visit_started = True
+    if pg.url_path != home_pg.url_path:
+        st.switch_page(home_pg)
 
 pg.run()
 

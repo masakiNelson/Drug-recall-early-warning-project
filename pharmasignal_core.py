@@ -53,6 +53,7 @@ procurement teams (hospital pharmacies, supply agencies, distributors). Follow t
 5. Never recommend approving or rejecting a supplier and never call a product or firm unsafe. Give evidence and checks; humans decide.
 6. The recalling firm may not be the manufacturer; do not infer sites or countries from names.
 7. This is US FDA data up to the snapshot date; say so when relevance to other markets is limited.
+8. Whenever you mention a recall class, add its risk level: Class I (high risk), Class II (medium risk), Class III (low risk).
 Write in plain language for pharmacists, under 300 words.'''
 
 

@@ -4,6 +4,7 @@ Two matching palettes (light and dark), one chart theme and a small set of build
 KPI tiles, status chips, cards, callouts) so every page looks and reads the same way in either mode.
 """
 import html
+import re
 
 import altair as alt
 import numpy as np
@@ -36,6 +37,13 @@ CLASS_COLOURS = None
 CLASS_TEXT = {"Class I": "Serious harm or death is reasonably possible.",
               "Class II": "Temporary or reversible harm is possible; serious harm is unlikely.",
               "Class III": "Unlikely to cause harm, but breaks the rules, such as a labelling error."}
+CLASS_RISK = {"I": "high risk", "II": "medium risk", "III": "low risk"}
+_CLASS_RE = re.compile(r"\bClass (III|II|I)\b(?!\s*\()")
+
+
+def with_risk(text):
+    """'Class I' -> 'Class I (high risk)', so nobody needs the key to read a recall class."""
+    return _CLASS_RE.sub(lambda m: f"Class {m.group(1)} ({CLASS_RISK[m.group(1)]})", str(text))
 
 TEAM = {"Cindy Murogo": "Project lead and data pipeline",
         "Daniel Kimasar": "Classification, evaluation and business analytics",
@@ -51,7 +59,7 @@ def set_mode(mode):
     P = PALETTES[MODE]
     TEAL, INK, AMBER, CORAL, BLUE = P["TEAL"], P["INK"], P["AMBER"], P["CORAL"], P["BLUE"]
     MIST, MUTED, SLATE, TEAL_LIGHT = P["MIST"], P["MUTED"], P["MUTED"], P["TEAL_LIGHT"]
-    CLASS_COLOURS = alt.Scale(domain=["Class I", "Class II", "Class III"], range=[P["CORAL"], P["AMBER"], P["MIST"]])
+    CLASS_COLOURS = alt.Scale(domain=[with_risk(c) for c in ("Class I", "Class II", "Class III")], range=[P["CORAL"], P["AMBER"], P["MIST"]])
 
 
 set_mode("light")
@@ -125,9 +133,9 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .ps-hero {{ background: radial-gradient(90% 120% at 50% 0%, {p['HERO_GLOW']} 0%, rgba(0,0,0,0) 60%), {p['HERO']};
            border-radius: 18px; padding: 26px 32px 0 32px; margin-bottom: 18px; overflow: hidden; text-align: center;
            box-shadow: 0 10px 30px rgba(11,34,57,0.18); }}
-.ps-hero .kicker {{ display: inline-flex; align-items: center; gap: 6px; background: rgba(95,212,189,0.14);
-                   color: #8EE6D5; border: 1px solid rgba(95,212,189,0.35); border-radius: 999px; padding: 3px 12px;
-                   font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; }}
+.ps-hero .kicker {{ display: inline-flex; align-items: center; gap: 8px; background: rgba(95,212,189,0.16);
+                   color: #A8F0E2; border: 1px solid rgba(95,212,189,0.5); border-radius: 999px; padding: 6px 18px;
+                   font-size: 1.02rem; font-weight: 700; letter-spacing: 0.01em; margin-bottom: 14px; }}
 .ps-hero h1 {{ color: #FFFFFF !important; font-size: clamp(1.35rem, 2.4vw, 1.85rem); font-weight: 700; line-height: 1.2;
               margin: 0 auto 8px auto; padding: 0; max-width: 34ch; }}
 .ps-hero p {{ color: #D3E0EA; font-size: 0.97rem; margin: 0 auto; max-width: 66ch; line-height: 1.55; }}
@@ -286,9 +294,36 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .stMain [data-testid="stPageLink"] a::after {{ content: "›"; font-size: 1.35rem; line-height: 1; margin-left: 10px;
   color: {p['TEAL']}; font-weight: 700; }}
 .stMain [data-testid="stPageLink"] a:hover::after {{ color: #FFFFFF; }}
-.ps-who > div {{ background: {p['GREY_SOFT']} !important; border: none !important; box-shadow: none !important; text-align: left !important; }}
-.ps-who b {{ color: {p['MUTED']} !important; font-size: 0.8rem !important; text-transform: none; }}
+.ps-who > div {{ background: {p['GREY_SOFT']} !important; border: none !important; box-shadow: none !important; text-align: left !important;
+  border-top: 4px solid {p['TEAL']} !important; padding: 18px 20px 20px 20px !important; }}
+.ps-who .wh {{ display: flex; align-items: center; gap: 10px; color: {p['INK']}; font-size: 1.22rem; font-weight: 700;
+  line-height: 1.25; margin-bottom: 10px; }}
+.ps-who .wh .msr {{ display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none;
+  border-radius: 10px; background: {p['TEAL_SOFT']}; color: {p['TEAL']}; font-size: 22px; }}
+.ps-who p {{ color: {p['TEXT']}; font-size: 0.98rem; line-height: 1.55; margin: 0; }}
+.ps-who .tags {{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }}
+.ps-who .tags span {{ display: inline-block; background: {p['CARD']}; border: 1px solid {p['LINE']}; color: {p['INK']};
+  border-radius: 999px; padding: 3px 10px; font-size: 0.86rem; font-weight: 500; line-height: 1.4; }}
 .ps-infolabel {{ text-align: center; color: {p['MUTED']}; font-size: 0.86rem; margin: 2px 0 12px 0; }}
+
+/* ---- numbered route on the home page: solid buttons with a step number, a short note underneath */
+.ps-stage {{ color: {p['INK']}; font-size: 1.05rem; font-weight: 700; margin: 4px 0 10px 0; padding-bottom: 8px;
+  border-bottom: 2px solid {p['TEAL']}; }}
+.ps-stage small {{ display: block; color: {p['MUTED']}; font-size: 0.82rem; font-weight: 500; margin-top: 2px; }}
+.st-key-journey [data-testid="stPageLink"] a {{ background: {p['TEAL']} !important; border: 1.5px solid {p['TEAL']} !important;
+  justify-content: flex-start !important; padding: 11px 14px !important; border-radius: 12px !important; min-height: 60px;
+  box-shadow: 0 2px 0 {p['TEAL_TEXT']}, 0 6px 14px rgba(15,118,110,0.18) !important; }}
+.st-key-journey [data-testid="stPageLink"] a:hover {{ background: {p['TEAL_TEXT']} !important; transform: translateY(-1px); }}
+.st-key-journey [data-testid="stPageLink"] a p {{ color: #FFFFFF !important; font-size: 1rem !important; }}
+.st-key-journey [data-testid="stPageLink"] a > span:has([data-testid="stIconMaterial"]) {{ display: none !important; }}
+.st-key-journey [data-testid="stPageLink"] a > span:last-child {{ flex: 1 1 auto !important; overflow: visible !important;
+  white-space: normal !important; min-width: 0; }}
+.st-key-journey [data-testid="stPageLink"] a > span:last-child * {{ white-space: normal !important; text-align: left; line-height: 1.25; }}
+.st-key-journey [data-testid="stPageLink"] a::before {{ display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; color: {p['TEAL_TEXT']}; font-weight: 800;
+  font-size: 0.95rem; margin-right: 10px; }}
+.st-key-journey [data-testid="stPageLink"] a::after {{ color: #FFFFFF !important; margin-left: auto !important; padding-left: 8px; }}
+.ps-stepnote {{ color: {p['TEXT']}; font-size: 0.9rem; line-height: 1.45; margin: 6px 2px 16px 2px; }}
 
 /* ---- expanders read as buttons, so nobody misses them */
 .stMain [data-testid="stExpander"] details {{ border: 1.5px solid {p['TEAL']} !important; border-radius: 12px !important;
@@ -381,7 +416,7 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .ps-explain .blue .ic .msr {{ color: {p['BLUE']}; }} .ps-explain .amber .ic .msr {{ color: {p['AMBER']}; }}
 .ps-explain .coral .ic .msr {{ color: {p['CORAL']}; }} .ps-explain .green .ic .msr {{ color: {p['GREEN']}; }}
 .ps-anshead .msr, .ps-aitag .msr {{ font-size: 20px; margin-right: 6px; }}
-.ps-hero .kicker .msr {{ font-size: 16px; }}
+.ps-hero .kicker .msr {{ font-size: 20px; }}
 .ps-foot {{ color: {p['MUTED']}; font-size: 0.84rem; border-top: 1px solid {p['LINE']}; margin-top: 40px; padding-top: 14px; text-align: center; }}
 </style>
 """
@@ -401,7 +436,7 @@ def esc(text):
 
 
 def _html(markup):
-    st.markdown(markup, unsafe_allow_html=True)
+    st.markdown(with_risk(markup), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------- building blocks
@@ -455,10 +490,20 @@ def steps(items):
                                              for i, s in enumerate(items, 1)) + "</div>")
 
 
-def who_strip(user, job, decision):
-    _html(f'<div class="ps-who"><div><b>Who it is for</b><span>{esc(user)}</span></div>'
-          f'<div><b>Their job</b><span>{esc(job)}</span></div>'
-          f'<div><b>The decision it supports</b><span>{esc(decision)}</span></div></div>')
+def who_strip(cards):
+    """cards: list of (icon, heading, text, chips). chips is an optional list of short labels shown under the text."""
+    out = []
+    for ic, head, text, tags in cards:
+        tagh = ('<div class="tags">' + "".join(f"<span>{esc(t)}</span>" for t in tags) + "</div>") if tags else ""
+        body = f"<p>{esc(text)}</p>" if text else ""
+        out.append(f'<div><div class="wh"><span class="msr">{esc(ic)}</span>{esc(head)}</div>{body}{tagh}</div>')
+    _html('<div class="ps-who">' + "".join(out) + "</div>")
+
+
+def journey_css(n_steps):
+    """Number badges for the numbered route buttons on the home page."""
+    return "<style>" + "".join(f'.st-key-jstep_{i} [data-testid="stPageLink"] a::before {{ content: "{i}"; }}'
+                               for i in range(1, n_steps + 1)) + "</style>"
 
 
 def ai_band(title, text, question, answer):

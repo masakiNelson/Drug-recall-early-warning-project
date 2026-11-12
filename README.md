@@ -68,8 +68,19 @@ import os; print(bool(os.environ.get("ANTHROPIC_API_KEY")))
    LLM_MODEL = "claude-sonnet-5-5"     # or "claude-haiku-5-5" for about 20 times lower cost
    DAILY_QUESTION_LIMIT = 150          # written answers per day for the whole app
    SESSION_QUESTION_LIMIT = 25         # written answers per visitor
+   # Feedback form (Team & Feedback page):
+   FEEDBACK_PASSWORD = "choose-a-team-password"   # shows the "Team only: read the feedback" panel
+   FEEDBACK_GITHUB_TOKEN = "github_pat_..."       # keeps feedback permanently (see below)
    ```
    When a limit is reached the assistant keeps working in evidence-only mode, so the app never breaks.
+
+   **Where feedback goes.** Streamlit Cloud deletes files on the server whenever the app restarts, so without a token
+   feedback only lasts until the next reboot. With `FEEDBACK_GITHUB_TOKEN` set, every answer is added to
+   `feedback/feedback.csv` on a separate `feedback` branch of this repository (created automatically), so it is kept
+   permanently and saving it never redeploys the app. Create the token at GitHub -> Settings -> Developer settings ->
+   Fine-grained tokens, limited to this repository with *Contents: Read and write*. If the repository is public,
+   the feedback file is public too (no names are collected); to keep it private, point `FEEDBACK_REPO = "owner/private-repo"`
+   at a private repository instead. The team reads and downloads feedback in the app with `FEEDBACK_PASSWORD`.
 4. Set a monthly spend limit in the Anthropic Console, because anyone with the link can ask questions.
 
 Live app: *add the URL here after deploying*
@@ -80,7 +91,7 @@ An interactive web app built on the notebook's results, with eleven short pages 
 
 | Group | Page | What it shows |
 |---|---|---|
-| Start | **Home** | What PharmaSignal AI is, who it is for, and where to start |
+| Start | **Home** | What PharmaSignal AI is, who it is for, and a numbered route through all ten pages |
 | Recall Insights | **Recall Snapshot** | Four headline facts and recall severity year by year |
 | | **Failure Patterns** | Failure types and dosage forms behind recalls |
 | | **Firm Directory** | The firms that recall most often, and a search across all records |
