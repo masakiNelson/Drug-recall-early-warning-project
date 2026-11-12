@@ -1,0 +1,11 @@
+   # Secrets - never commit your API key
+   .env
+   .streamlit/secrets.toml
+
+   # Local Python / Jupyter files
+   .venv/
+   venv/
+   __pycache__/
+   .ipynb_checkpoints/
+   .idea/
+   .DS_Store
