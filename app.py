@@ -124,16 +124,19 @@ def home():
             "machine learning, spots unusual surges, and answers your questions with evidence you can check.",
             by_month.values,
             f"Monthly FDA drug-quality recall events, {by_month.index.min():%b %Y} to {by_month.index.max():%b %Y}. "
-            f"Busiest month (amber): {peak_month:%b %Y}, {peak_n} events.")
+            f"Busiest month (amber): {peak_month:%b %Y}, {peak_n} events.",
+            caution="This checks US FDA recalls only. A clean result does not mean a supplier is safe: also check your "
+                    "national medicines regulator, WHO alerts and the supplier's licences.")
     ui.who_strip([
-        ("groups", "Who it is for", "",
+        ("groups", "Who is it for?", "",
          ["Hospital pharmacists", "Procurement officers", "Supply agencies", "Distributors", "Regulators",
           "Quality assurance teams"]),
-        ("build", "What you do with it",
+        ("build", "What do you do with it?",
          "Check a supplier's recall history, spot unusual surges in recalls, and ask questions in plain English, "
          "all before you buy.", None),
-        ("gavel", "The decision it supports",
-         "Buy from a supplier with confidence, or ask them for more quality documents first.", None)])
+        ("gavel", "What does it help decide?",
+         "Decide whether to proceed with a supplier or ask them for more quality documents first. "
+         "The tool gives evidence; the final call stays with you.", None)])
 
     ui.section("Your route through PharmaSignal",
                "Follow the numbered buttons from 1 to 10 for the full story, or jump straight to the step you need.")
@@ -1030,7 +1033,8 @@ with st.sidebar:
     ai_on = llm is not None
     st.markdown(f"""<div class="ps-side">
 <p>AI-powered drug-quality recall intelligence for medicines procurement.</p>
-<p><b>Data</b><br>openFDA snapshot, {d.provenance['effective_snapshot_date']}<br>
+<p><b>Data</b><br>US FDA recalls up to {ui.nice_date(d.provenance['effective_snapshot_date'])}<br>
+Newer recalls are not included<br>
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
 <p><b>AI assistant</b><br><span class="dot" style="background:{ui.P['GREEN'] if ai_on else ui.AMBER}"></span>
 {'Claude connected' if ai_on else 'Evidence only (no API key)'}</p>

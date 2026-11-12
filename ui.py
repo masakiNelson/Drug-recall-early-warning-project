@@ -140,6 +140,10 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
               margin: 0 auto 8px auto; padding: 0; max-width: 34ch; }}
 .ps-hero p {{ color: #D3E0EA; font-size: 0.97rem; margin: 0 auto; max-width: 66ch; line-height: 1.55; }}
 .ps-hero .ps-spark {{ display: block; width: calc(100% + 64px); margin: 16px -32px 0 -32px; height: 54px; }}
+.ps-hero .caution {{ display: flex; align-items: flex-start; gap: 8px; text-align: left; max-width: 66ch; margin: 14px auto 0 auto;
+  background: rgba(219,142,28,0.14); border: 1px solid rgba(240,180,80,0.5); border-radius: 10px; padding: 9px 14px;
+  color: #F8DDB0; font-size: 0.9rem; line-height: 1.45; }}
+.ps-hero .caution .msr {{ font-size: 19px; color: #F2B85C; margin-top: 1px; }}
 .ps-hero .note {{ color: #A9BDCF; font-size: 0.74rem; padding: 6px 0 10px 0; }}
 
 /* inner page header, centred */
@@ -455,10 +459,12 @@ def sparkline_svg(values, width=1000, height=96):
             f'<circle cx="{x[peak]:.1f}" cy="{y[peak]:.1f}" r="5" fill="#F2AE45" stroke="#0B2239" stroke-width="2"/></svg>')
 
 
-def hero(kicker, title, text, spark_values=None, spark_note=""):
+def hero(kicker, title, text, spark_values=None, spark_note="", caution=""):
     spark = sparkline_svg(spark_values) if spark_values is not None else ""
     note = f'<div class="note">{esc(spark_note)}</div>' if spark_note else '<div style="height:30px"></div>'
-    _html(f'<div class="ps-hero"><div class="kicker">{icon("auto_awesome")}{esc(kicker)}</div><h1>{esc(title)}</h1><p>{esc(text)}</p>{spark}{note}</div>')
+    warn = f'<div class="caution">{icon("info")}<span>{esc(caution)}</span></div>' if caution else ""
+    _html(f'<div class="ps-hero"><div class="kicker">{icon("auto_awesome")}{esc(kicker)}</div><h1>{esc(title)}</h1>'
+          f'<p>{esc(text)}</p>{warn}{spark}{note}</div>')
 
 
 def page_header(title, text, icon="", ai=False):
@@ -569,9 +575,19 @@ def note(text, kind="info"):
     _html(f'<div class="ps-note {kind}">{text}</div>')
 
 
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def nice_date(text):
+    """'openFDA snapshot 2026-10-07' or '2026-10-07' -> '7 Oct 2026'."""
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", str(text))
+    return f"{int(m.group(3))} {MONTHS[int(m.group(2)) - 1]} {m.group(1)}" if m else str(text)
+
+
 def footer(source):
-    _html(f'<div class="ps-foot">PharmaSignal AI, a capstone group project. Data: {esc(source)}. '
-          'It gives evidence for people to weigh and never a verdict on a medicine or supplier.</div>')
+    when = nice_date(source)
+    _html(f'<div class="ps-foot">PharmaSignal AI, a capstone group project. US FDA data up to {esc(when)}; newer recalls are not '
+          'included. It gives evidence for people to weigh and never a verdict on a medicine or supplier.</div>')
 
 
 STATUS_TONE = {"Met": "teal", "Done": "teal", "Checked live": "teal", "Scheduled": "grey"}
