@@ -6,4 +6,4 @@ Lead time,Positive lead to peak,median 0 months,not met
 Earlier than news,Alert before public announcement,median -2 months,not met - FDA publication lag
 Workload,< 2 watch-list alerts per month,0.80,met
 Assistant,Evidence layer correct on 20-question test,20/20,met
-Assistant,Generated answers verified by checker,not run - no API key in this session (run on your machine with ANTHROPIC_API_KEY set),see value
+Assistant,Generated answers verified by checker,20/20 answers fully verified; 20/20 avoid verdicts,see value
