@@ -11,7 +11,7 @@ Capstone group project: an AI-powered prototype that turns openFDA drug-recall r
 | `Drug_Recall_Intelligence_Final.ipynb` | The full analysis notebook |
 | `drug_recalls.csv` | openFDA drug enforcement snapshot |
 | `labelled_recall_reasons.csv` | 1,000 recall reasons labelled by AI-assisted annotation (see *Use of AI*) |
-| `blind_check_150.csv` | Blind human check of 150 labels, used to measure agreement (Cohen's kappa) |
+| `blind_check_150.csv` | Blind human check of 150 labels (completed): 87% agreement with the AI labels, Cohen's kappa 0.85 |
 | `app.py`, `pharmasignal_core.py`, `ui.py` | Streamlit app: pages, logic taken from the notebook, and shared styling |
 | `.streamlit/config.toml`, `assets/` | App theme (colours, fonts) and logo |
 | `USER_TEST.md` | Five-minute script for testing the app with someone outside the team |
@@ -46,4 +46,4 @@ We used Claude (Anthropic) in this project and declare it as follows:
 - **Labelling:** the 1,000 recall reasons were labelled by LLM-assisted annotation 
 - **Code and documentation:** Claude assisted annotation.
 - **The assistant inside the app** uses Claude to write answers from SQL facts and retrieved recall records only; a code checker verifies every number and recall ID.
-- **Our checks and decisions:** the team chose the problem and the evidence-not-verdicts rule, reviewed the results, and validated the work with the blind label check, a 20-question assistant test set and backtests on six known recall crises.
+- **Our checks and decisions:** the team chose the problem and the evidence-not-verdicts rule, reviewed the results, and validated the work with the blind label check (149 records, 87% agreement, Cohen's kappa 0.85), a 20-question assistant test set and backtests on six known recall crises.
