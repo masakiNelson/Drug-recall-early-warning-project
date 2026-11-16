@@ -410,8 +410,8 @@ def make_llm(api_key=None):
     return anthropic.Anthropic(api_key=api_key)
 
 
-def _llm_text(llm, messages):
-    resp = llm.messages.create(model=LLM_MODEL, max_tokens=800, system=SYSTEM_PROMPT, messages=messages)
+def _llm_text(llm, messages, system=SYSTEM_PROMPT, max_tokens=800):
+    resp = llm.messages.create(model=LLM_MODEL, max_tokens=max_tokens, system=system, messages=messages)
     if resp.stop_reason == "refusal":
         raise RuntimeError("Claude declined to answer")
     return "".join(b.text for b in resp.content if b.type == "text")
@@ -440,3 +440,41 @@ def ask(d: PharmaData, question, llm=None):
         except Exception as e:
             answer, status = None, f"Claude call failed ({type(e).__name__}) - showing evidence only"
     return {**r, "evidence": ev, "answer": answer, "status": status, "verified": verified, "context": context}
+
+
+# ---------------------------------------------------------------- tender committee note (Tender Screener)
+TENDER_PROMPT = '''You are PharmaSignal AI, helping a medicines tender committee prepare clarification questions for bidders.
+You receive one evidence brief per bidder for a single tendered product, built only from US FDA recall data. Write a note for
+the committee in markdown with exactly these sections:
+## Overview
+Two or three sentences: how many bidders were screened, which have a Class I recall in the last 12 months or evidence flags,
+and which have no FDA record (say plainly that no FDA record is not evidence of good quality).
+## Clarification questions for each bidder
+For every bidder, in the order given: a "### <bidder name>" heading, one sentence on what its record shows (cite recall
+numbers in brackets where the brief lists them), then three numbered questions to send to that bidder. Make the questions
+specific to its own failure types, recent recalls and the tendered product. For a bidder with no FDA record, ask about
+registration with the national medicines regulator, GMP inspection evidence and its recall history in other markets.
+## Documents to prioritise
+Three to five bullets: the documents most worth requesting across this shortlist, taken from the briefs' checklists.
+Rules: use ONLY the briefs. Never invent numbers, recall numbers, dates or firms. Do not rank bidders, compare them as better
+or worse, recommend award or rejection, or call any product or firm unsafe: the committee decides. If a brief says a match
+must be confirmed, call the match unconfirmed. Whenever you mention a recall class, add its risk level: Class I (high risk),
+Class II (medium risk), Class III (low risk). Plain language for pharmacists and procurement officers, under 500 words.'''
+
+
+def tender_note(d: PharmaData, product, briefs, llm):
+    """Claude drafts clarification questions for each bidder from the evidence briefs; the checker verifies every number
+    and recall ID against the briefs, with one self-correction round. Returns dict(answer, verified, status)."""
+    context = (f"TENDERED PRODUCT: {product}\nSNAPSHOT: {d.source}; recent window {d.recent_start} to {d.last_month}\n"
+               f"NUMBER OF BIDDERS: {len(briefs)}\n\n" + "\n\n".join(briefs.values()))
+    msgs = [{"role": "user", "content": context}]
+    answer = _llm_text(llm, msgs, system=TENDER_PROMPT, max_tokens=1500)
+    bad = check_answer(answer, context)
+    if bad[0] or bad[1]:
+        msgs += [{"role": "assistant", "content": answer},
+                 {"role": "user", "content": f"These items are not in the briefs: {bad}. Rewrite using only the briefs."}]
+        answer = _llm_text(llm, msgs, system=TENDER_PROMPT, max_tokens=1500)
+        bad = check_answer(answer, context)
+    verified = not (bad[0] or bad[1])
+    return {"answer": answer, "verified": verified,
+            "status": "checker: all numbers and IDs verified" if verified else f"UNVERIFIED items: {bad}"}

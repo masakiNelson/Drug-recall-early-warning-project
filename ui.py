@@ -92,7 +92,8 @@ def ranked_bars(df, value, label, highlight=2, colour=None, height=320):
     base = alt.Chart(df).encode(
         y=alt.Y(f"{label}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=260, labelFontSize=13, labelPadding=8,
                                                                    labelColor=P["TEXT"])),
-        x=alt.X(f"{value}:Q", title=None, axis=None))
+        x=alt.X(f"{value}:Q", title=None, axis=None,
+                scale=alt.Scale(domain=[0, float(df[value].max()) * 1.18 if len(df) else 1], nice=False)))
     bars = base.mark_bar(cornerRadiusEnd=5, height={"band": 0.72}).encode(
         color=alt.condition(f"datum._rank < {highlight}", alt.value(colour), alt.value(P["MIST"])),
         tooltip=[alt.Tooltip(f"{label}:N"), alt.Tooltip(f"{value}:Q", format=",")])
@@ -328,6 +329,24 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
   font-size: 0.95rem; margin-right: 10px; }}
 .st-key-journey [data-testid="stPageLink"] a::after {{ color: #FFFFFF !important; margin-left: auto !important; padding-left: 8px; }}
 .ps-stepnote {{ color: {p['TEXT']}; font-size: 0.9rem; line-height: 1.45; margin: 6px 2px 16px 2px; }}
+.st-key-journey [data-testid="stPageLink"] a > span:last-child *,
+.st-key-psnav [data-testid="stPageLink"] a * {{ word-break: normal !important; overflow-wrap: normal !important; hyphens: manual; }}
+.ps-stage .dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }}
+
+/* ---- previous / next buttons at the foot of every page */
+.st-key-psnav {{ border-top: 1px solid {p['LINE']}; margin-top: 28px; padding-top: 18px; }}
+.st-key-psnav [data-testid="stPageLink"] a {{ border: 1.5px solid transparent !important; border-radius: 12px !important;
+  padding: 10px 16px !important; min-height: 52px; transition: transform .12s ease; }}
+.st-key-psnav [data-testid="stPageLink"] a:hover {{ transform: translateY(-1px); }}
+.st-key-psnav [data-testid="stPageLink"] a p,
+.st-key-psnav [data-testid="stPageLink"] a span {{ color: #FFFFFF !important; font-weight: 650; }}
+.stMain .st-key-psnav [data-testid="stPageLink"] a span[data-testid="stIconMaterial"] {{ color: #FFFFFF !important; font-size: 1.25rem; }}
+.stMain .st-key-psnav [data-testid="stPageLink"] a::after {{ content: none !important; }}
+.st-key-psnav_next {{ align-items: flex-end !important; }}
+.st-key-psnav_prev {{ align-items: flex-start !important; }}
+.ps-navpos {{ text-align: center; color: {p['MUTED']}; font-size: 0.9rem; font-weight: 600; padding-top: 6px; }}
+.ps-navpos .dot {{ display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }}
+.ps-navpos small {{ display: block; font-weight: 500; font-size: 0.82rem; margin-top: 2px; }}
 
 /* ---- expanders read as buttons, so nobody misses them */
 .stMain [data-testid="stExpander"] details {{ border: 1.5px solid {p['TEAL']} !important; border-radius: 12px !important;
@@ -506,10 +525,50 @@ def who_strip(cards):
     _html('<div class="ps-who">' + "".join(out) + "</div>")
 
 
-def journey_css(n_steps):
-    """Number badges for the numbered route buttons on the home page."""
-    return "<style>" + "".join(f'.st-key-jstep_{i} [data-testid="stPageLink"] a::before {{ content: "{i}"; }}'
-                               for i in range(1, n_steps + 1)) + "</style>"
+# One colour per section of the route, used on the home page and on the previous/next buttons of every page.
+# (main colour, darker shade for hover and shadow); white text passes WCAG AA on each.
+STAGE_COLOURS = {1: ("#0F766E", "#0B5E57"),   # Understand the history - teal
+                 2: ("#A85A00", "#844600"),   # Spot the warning signs - amber
+                 3: ("#1F5F99", "#174A78"),   # Decide on a supplier - blue
+                 4: ("#5B4B8A", "#46396E")}   # Check the evidence - violet
+
+
+def _link_colour(selector, stage):
+    main, dark = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])
+    return (f'{selector} [data-testid="stPageLink"] a {{ background: {main} !important; border-color: {main} !important;'
+            f' box-shadow: 0 2px 0 {dark}, 0 6px 14px rgba(11,34,57,0.16) !important; }}'
+            f'{selector} [data-testid="stPageLink"] a:hover {{ background: {dark} !important; }}'
+            f'{selector} [data-testid="stPageLink"] a::before {{ color: {main} !important; }}')
+
+
+def journey_css(steps):
+    """steps: list of (number, stage). Number badges and section colours for the route buttons on the home page."""
+    css = "".join(f'.st-key-jstep_{i} [data-testid="stPageLink"] a::before {{ content: "{i}"; }}' + _link_colour(f".st-key-jstep_{i}", s)
+                  for i, s in steps)
+    css += "".join(f".ps-stage.s{k} {{ border-bottom-color: {c[0]}; }} .ps-stage.s{k} .dot {{ background: {c[0]}; }}"
+                   for k, c in STAGE_COLOURS.items())
+    return "<style>" + css + "</style>"
+
+
+def soft_label(title):
+    """Lets a long product name break with a hyphen ('Pharma-Signal') instead of mid-word or overflowing."""
+    return title.replace("PharmaSignal", "Pharma\u00adSignal")
+
+
+def route_nav_css(prev_stage, next_stage):
+    """Colours the previous/next buttons by the section of the page they lead to."""
+    css = ""
+    if prev_stage:
+        css += _link_colour(".st-key-psnav_prev", prev_stage)
+    if next_stage:
+        css += _link_colour(".st-key-psnav_next", next_stage)
+    return "<style>" + css + "</style>"
+
+
+def route_position(step, total, stage_name, stage):
+    main = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])[0]
+    _html(f'<div class="ps-navpos"><span class="dot" style="background:{main}"></span>Step {step} of {total}'
+          f'<small>{esc(stage_name)}</small></div>')
 
 
 def ai_band(title, text, question, answer):

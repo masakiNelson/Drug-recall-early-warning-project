@@ -34,7 +34,7 @@ An interactive web app built on the notebook's results, with eleven short pages 
 | | **Trend Explorer** | Recalls per year by failure type, and sliders to test the signal rules |
 | | **Crisis Back-test** | Whether the detectors would have recognised six real crises |
 | Decision Tools | **Tender Screener** | Type or upload bidders; colour-coded results, evidence briefs and downloads |
-| | **Ask PharmaSignal AI** | Plain-English questions with colour-coded answers, checked by code |
+| | **Ask PharmaSignal AI** | Questions about recalls, with colour-coded answers checked by code |
 | About the Project | **Methods & Evidence** | Method, evaluation results, limitations and key terms |
 | | **Team & Feedback** | The team, use of AI, a feedback form and the team's action points |
 

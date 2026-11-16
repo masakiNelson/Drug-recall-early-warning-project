@@ -3,6 +3,7 @@
 Run the notebook once (it creates outputs/), then:   streamlit run app.py
 """
 import base64
+import functools
 import hmac
 import io
 import os
@@ -114,6 +115,43 @@ def friendly_error(action, err):
              "if it keeps happening, re-run the notebook so the outputs folder is up to date.")
 
 
+# ============================================================ previous / next buttons
+def route_nav():
+    here = CURRENT["page"]
+    pos = next((i for i, r in enumerate(ROUTE) if r["fn"] == here), None)
+    if here == "home":
+        prev, nxt, step = None, ROUTE[0], 0
+    elif pos is None:
+        return
+    else:
+        prev = ROUTE[pos - 1] if pos > 0 else HOME_STEP
+        nxt = ROUTE[pos + 1] if pos + 1 < len(ROUTE) else None
+        step = pos + 1
+    st.markdown(ui.route_nav_css(prev["stage"] if prev else None, (nxt or HOME_STEP)["stage"]), unsafe_allow_html=True)
+    with st.container(key="psnav"):
+        c1, c2, c3 = st.columns([5, 3, 5], vertical_alignment="center")
+        with c1:
+            if prev:
+                with st.container(key="psnav_prev"):
+                    label = "Back to Home" if prev is HOME_STEP else f"Previous: {ui.soft_label(prev['page'].title)}"
+                    st.page_link(prev["page"], label=label, icon=":material/arrow_back:",
+                                 help=f"**{prev['page'].title}**  \n{prev['note']}")
+        with c2:
+            if step:
+                ui.route_position(step, len(ROUTE), ROUTE[step - 1]["stage_name"], ROUTE[step - 1]["stage"])
+        with c3:
+            target = nxt or HOME_STEP
+            with st.container(key="psnav_next"):
+                label = f"Next: {ui.soft_label(target['page'].title)}" if nxt else "Back to Home"
+                st.page_link(target["page"], label=label, icon=":material/arrow_forward:", icon_position="right",
+                             help=f"**{target['page'].title}**  \n{target['note']}")
+
+
+def page_end():
+    route_nav()
+    ui.footer(d.source)
+
+
 # ============================================================ Home
 def home():
     by_month = EVENTS.dropna(subset=["report_date_dt"]).set_index("report_date_dt").resample("MS").event_id.nunique()
@@ -132,7 +170,7 @@ def home():
          ["Hospital pharmacists", "Procurement officers", "Supply agencies", "Distributors", "Regulators",
           "Quality assurance teams"]),
         ("build", "What do you do with it?",
-         "Check a supplier's recall history, spot unusual surges in recalls, and ask questions in plain English, "
+         "Check a supplier's recall history, spot unusual surges in recalls, and ask questions about them, "
          "all before you buy.", None),
         ("gavel", "What does it help decide?",
          "Decide whether to proceed with a supplier or ask them for more quality documents first. "
@@ -140,43 +178,33 @@ def home():
 
     ui.section("Your route through PharmaSignal",
                "Follow the numbered buttons from 1 to 10 for the full story, or jump straight to the step you need.")
-    stages = [("Understand the history", "Steps 1 to 3", [
-                  (findings_pg, "The big picture: how many recalls, how serious, and how that changed each year."),
-                  (failures_pg, "What goes wrong most often, such as contamination, impurities or failed sterility."),
-                  (firms_pg, "Look up any firm's recall record and search individual recall reports.")]),
-              ("Spot the warning signs", "Steps 4 to 6", [
-                  (latest_pg, "This month's unusual jumps in recalls, ranked by how many detectors agree."),
-                  (trends_pg, "Follow a failure type over the years and test how sensitive the alerts are."),
-                  (backtest_pg, "Would the detectors have caught six real recall crises early? See the replay.")]),
-              ("Decide on a supplier", "Steps 7 and 8", [
-                  (tender_pg, "Enter your shortlist of suppliers and a product, and get a colour-coded recall check."),
-                  (ask_pg, "Ask a question in plain English and get an answer backed by recall numbers.")]),
-              ("Check the evidence", "Steps 9 and 10", [
-                  (how_pg, "How the models work, how well they perform, and what they cannot tell you."),
-                  (team_pg, "Meet the team and tell us what to improve.")])]
-    st.markdown(ui.journey_css(sum(len(s[2]) for s in stages)), unsafe_allow_html=True)
+    st.markdown(ui.journey_css([(n, r["stage"]) for n, r in enumerate(ROUTE, 1)]), unsafe_allow_html=True)
     n = 0
     with st.container(key="journey"):
-        cols = st.columns(len(stages), gap="medium")
-        for col, (stage, span, items) in zip(cols, stages):
+        cols = st.columns(len(STAGES), gap="medium")
+        for k, (col, (stage, span, items)) in enumerate(zip(cols, STAGES), 1):
             with col:
-                st.markdown(f'<div class="ps-stage">{ui.esc(stage)}<small>{ui.esc(span)}</small></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="ps-stage s{k}"><span class="dot"></span>{ui.esc(stage)}<small>{ui.esc(span)}</small></div>',
+                            unsafe_allow_html=True)
                 for page, note in items:
                     n += 1
                     with st.container(key=f"jstep_{n}"):
-                        st.page_link(page, label=page.title, width="stretch")
+                        st.page_link(page, label=ui.soft_label(page.title), width="stretch", help=note)
                         st.markdown(f'<p class="ps-stepnote">{ui.esc(note)}</p>', unsafe_allow_html=True)
 
+    teva = d.fe[d.fe.firm_std == "teva pharmaceuticals usa"]
+    teva_total = int(teva.total_events.iloc[0]) if len(teva) else 0
+    teva_class1 = int(teva.class_I_events.iloc[0]) if len(teva) else 0
     ui.section("Meet the PharmaSignal AI assistant",
                "Three kinds of AI work together: a machine-learning classifier, anomaly detectors and a language model.")
-    ui.ai_band("Ask in plain English, get answers you can check",
+    ui.ai_band("Ask a question, get answers you can check",
                "The assistant looks up the facts with database queries, finds the closest recall records, and asks Claude "
                "to explain them. Code then checks every number and recall ID before you see the answer. It never "
                "calls a medicine unsafe or tells you to reject a supplier.",
                "Has Teva Pharmaceuticals USA had any Class I recalls?",
-               "Facts from the data: 158 recall events, 6 of them Class I, each cited by its recall number. "
+               f"Facts from the data: {teva_total} recall events, {teva_class1} of them Class I, each cited by its recall number. "
                "What this may mean, and the checks to make before award, follow underneath.")
-    ui.footer(d.source)
+    page_end()
 
 
 # ============================================================ Explore the data
@@ -218,14 +246,14 @@ def key_findings():
     ui.class_legend()
     per_year = EVENTS[EVENTS.classification.isin(ALL_CLASSES)].groupby(["year", "classification"]).size().reset_index(name="events")
     per_year["classification"] = per_year.classification.map(ui.with_risk)
-    st.subheader(ui.with_risk("Class II recalls dominate every year; Class I is the smaller, most serious share"))
+    st.subheader("Recall events per year, by recall class")
     ui.chart(alt.Chart(per_year).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("events:Q", title="Recall events"),
         color=alt.Color("classification:N", title=None, scale=ui.CLASS_COLOURS),
         order=alt.Order("classification:N", sort="ascending"),
         tooltip=["year", "classification", "events"]), 320)
-    ui.footer(d.source)
+    page_end()
 
 
 def what_goes_wrong():
@@ -236,41 +264,23 @@ def what_goes_wrong():
     a, b = st.columns(2, gap="large")
     with a:
         c = ev.analysis_category.map(nice_cat).value_counts().rename_axis("failure").reset_index(name="events")
-        st.subheader(f"{c.failure.iloc[0]} and {c.failure.iloc[1].lower()} lead")
+        st.subheader("Recall events by failure type")
         ui.ranked_bars(c, "events", "failure", highlight=2, height=360)
     with b:
         g = ev.product_group.value_counts().rename_axis("dosage form").reset_index(name="events")
-        st.subheader(f"{g['dosage form'].iloc[0]} and {g['dosage form'].iloc[1].lower()} products lead")
+        st.subheader("Recall events by dosage form")
         ui.ranked_bars(g, "events", "dosage form", highlight=2, colour=ui.BLUE, height=360)
     ui.tip("<b>Reading the charts:</b> the two largest groups are coloured; the rest are grey. Counts are recall events "
            "(one recall decision), not individual products.")
-    ui.footer(d.source)
+    page_end()
 
 
 def firms_and_records():
     ui.page_header("Firm Directory", icon="factory", text=
                    "Which firms recall most often, what usually goes wrong for them, and a search across every recall record.")
     f, ev, _ = record_filter("firms")
-    st.subheader("The ten firms with the most recall events")
-    g = ev.groupby("firm_std")
-    top = (g.agg(events=("event_id", "nunique"), class_I=("classification", lambda s: int((s == "Class I").sum())),
-                 latest=("report_date_dt", "max"))
-           .sort_values("events", ascending=False).head(10))
-    main_fail = ev[ev.firm_std.isin(top.index)].groupby("firm_std").analysis_category.agg(lambda s: s.value_counts().index[0])
-    mx = int(top.events.max())
-    rows = []
-    for k, (firm, r) in enumerate(top.iterrows(), 1):
-        share = r.class_I / r.events if r.events else 0
-        rows.append([f'<span class="rank">{k}</span>',
-                     f'<b>{ui.esc(firm_title(firm))}</b><span class="sub">Most common failure: {ui.esc(nice_cat(main_fail.get(firm, "")).lower())}</span>',
-                     ui.bar_cell(int(r.events), mx),
-                     ui.chip(f"{int(r.class_I)} Class I", "coral" if r.class_I else "grey"),
-                     f"{share:.0%}", f"{r.latest:%b %Y}" if r.latest == r.latest else "-"])
-    ui.table(["#", "Recalling firm", "Recall events", "Most serious", "Class I share", "Latest recall"], rows, numeric=(4,))
-    ui.tip("The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
-           "so treat a name as the start of a question, not a conclusion.")
-
-    ui.section("Search recall records", "Type a product, firm or reason to see every matching recall.")
+    st.subheader("Search recall records")
+    st.caption("Type a product, firm or reason to see every matching recall.")
     q = st.text_input("Search", placeholder="e.g. metformin, benzene, Teva", label_visibility="collapsed")
     if q:
         hit = f[f.product_description.str.contains(q, case=False, na=False, regex=False)
@@ -293,7 +303,26 @@ def firms_and_records():
             "product_description": st.column_config.TextColumn("Product", width="large")})
         st.download_button("Download these records (CSV)", out.to_csv(index=False), "recall_search.csv", "text/csv",
                            icon=":material/download:")
-    ui.footer(d.source)
+    ui.section("The ten firms with the most recall events")
+    g = ev.groupby("firm_std")
+    top = (g.agg(events=("event_id", "nunique"), class_I=("classification", lambda s: int((s == "Class I").sum())),
+                 latest=("report_date_dt", "max"))
+           .sort_values("events", ascending=False).head(10))
+    main_fail = ev[ev.firm_std.isin(top.index)].groupby("firm_std").analysis_category.agg(lambda s: s.value_counts().index[0])
+    mx = int(top.events.max())
+    rows = []
+    for k, (firm, r) in enumerate(top.iterrows(), 1):
+        share = r.class_I / r.events if r.events else 0
+        rows.append([f'<span class="rank">{k}</span>',
+                     f'<b>{ui.esc(firm_title(firm))}</b><span class="sub">Most common failure: {ui.esc(nice_cat(main_fail.get(firm, "")).lower())}</span>',
+                     ui.bar_cell(int(r.events), mx),
+                     ui.chip(f"{int(r.class_I)} Class I", "coral" if r.class_I else "grey"),
+                     f"{share:.0%}", f"{r.latest:%b %Y}" if r.latest == r.latest else "-"])
+    ui.table(["#", "Recalling firm", "Recall events", "Most serious", "Class I share", "Latest recall"], rows, numeric=(4,))
+    ui.tip("The recalling firm announced the recall. It may be a distributor or repackager rather than the manufacturer, "
+           "so treat a name as the start of a question, not a conclusion.")
+
+    page_end()
 
 
 # ============================================================ Recall signals
@@ -329,7 +358,7 @@ def latest_signals():
              (f"{int(al.n_events.sum()):,}", "recall events in the flagged months", "")])
     if al.empty:
         ui.tip("No signals match these filters. Widen the reporting period or include more strength levels in the sidebar.")
-        ui.footer(d.source)
+        page_end()
         return
 
     al["name"] = [nice_cat(n) if t == "category" else firm_title(n) for t, n in zip(al.series_type, al.series_name)]
@@ -391,7 +420,7 @@ def latest_signals():
                                   "share and the number of firms involved.", "amber")])
     ui.tip("Every method needs at least 3 events in the month and more than the 12-month average. "
            "<b>Strong</b> = all three agree, <b>Moderate</b> = two, <b>Low</b> = one.")
-    ui.footer(d.source)
+    page_end()
 
 
 def signal_trends():
@@ -453,7 +482,7 @@ def signal_trends():
                              hovertemplate="Signal: %{x|%b %Y}, %{y} events<extra></extra>"))
     fig.update_yaxes(title_text="Recall events per month", rangemode="tozero")
     ui.plotly_chart(fig, 360)
-    ui.footer(d.source)
+    page_end()
 
 
 def backtest_page():
@@ -482,7 +511,7 @@ def backtest_page():
     if (figs / "backtests.png").exists():
         ui.section("The six crises, month by month")
         st.image(str(figs / "backtests.png"), width="stretch")
-    ui.footer(d.source)
+    page_end()
 
 
 # ============================================================ Tender screening
@@ -522,11 +551,57 @@ def bidder_status(row):
     return ("No recent flags", "teal", "Request the standard documents listed in the brief.")
 
 
+def tender_ai_note(prod, briefs, table):
+    """Claude drafts tailored clarification questions for every bidder from their evidence briefs (checked by code)."""
+    ui.section("AI step: clarification questions for each bidder",
+               "Claude reads the evidence briefs and drafts a note for the tender committee: what each record shows and "
+               "three questions to send to each bidder before award.")
+    sig = (prod, tuple(table.bidder))
+    note = st.session_state.get("tender_note")
+    if note and note["sig"] != sig:
+        note = None
+    allowed = llm is not None and llm_allowed()
+    with st.container(key="tender_ai", border=True):
+        st.markdown('<div class="ps-aitag">' + ui.icon("smart_toy") + 'PharmaSignal AI<span class="ps-ai">AI</span></div>',
+                    unsafe_allow_html=True)
+        st.caption("Uses only the briefs above. Code checks every number and recall number before you see it. "
+                   "It never ranks bidders or recommends award or rejection; the committee decides.")
+        if llm is None:
+            ui.note("<b>Claude is not connected.</b> Add <code>ANTHROPIC_API_KEY</code> to the app's secrets to switch on "
+                    "this step. The evidence briefs and checklists above work without it.", "warn")
+        elif not allowed and not note:
+            ui.note("<b>AI drafting is paused.</b> Today's limit for written answers has been reached. It starts again tomorrow.",
+                    "warn")
+        if st.button("Draft the clarification questions" if not note else "Draft again", type="primary",
+                     icon=":material/edit_note:", disabled=not allowed, key="tender_ai_btn"):
+            with st.spinner(f"Claude is reading {len(briefs)} evidence briefs..."):
+                try:
+                    res = core.tender_note(d, prod, briefs, llm)
+                    count_llm_use()
+                    note = {"sig": sig, **res}
+                    st.session_state.tender_note = note
+                except Exception as e:
+                    ui.note(f"<b>Claude could not draft the note ({ui.esc(type(e).__name__)}).</b> The evidence briefs above "
+                            "still give each bidder's checklist. Try again in a minute.", "limit")
+        if note:
+            st.markdown(ui.with_risk(note["answer"]))
+            if note["verified"]:
+                st.caption(f":material/verified: Checked: every number and recall number appears in the evidence briefs. "
+                           f"Drafted by Claude ({core.LLM_MODEL}); review and edit before sending to bidders.")
+            else:
+                ui.note("<b>Check this note carefully.</b> Some numbers or recall numbers could not be matched to the briefs: "
+                        f"{ui.esc(note['status'])}", "warn")
+            st.download_button("Download the committee note", note["answer"], "tender_clarification_questions.md",
+                               "text/markdown", icon=":material/download:", key="tender_note_dl")
+
+
 def tender():
-    ui.page_header("Tender Screener", icon="fact_check", text=
-                   "See each bidder's FDA recall evidence side by side, with a checklist of documents to request before award.")
+    ui.page_header("Tender Screener", icon="fact_check", ai=True, text=
+                   "See each bidder's FDA recall evidence side by side, with a checklist of documents to request before award, "
+                   "and let AI draft the clarification questions to send each bidder.")
     ui.steps(["Add the bidders: type them, upload a list, or use the example", "Enter the product being tendered",
-              "Screen, then download each bidder's evidence brief"])
+              "Screen, then download each bidder's evidence brief",
+              "Optional: let AI draft clarification questions for each bidder"])
     if "bidders_text" not in st.session_state:
         st.session_state.bidders_text = ""
     with st.container(border=True):
@@ -617,6 +692,8 @@ def tender():
                                    file_name=re.sub(r"[^a-z0-9]+", "_", r.bidder.lower()) + ".md", mime="text/markdown",
                                    icon=":material/download:")
 
+        tender_ai_note(prod, briefs, table)
+
     ui.section("Watch list: firms with recent evidence flags",
                f"Firms with recall activity and at least one flag between {month_label(d.recent_start)} and {month_label(d.last_month)}.")
     watch = d.fe[(d.fe.events_12m > 0) & (d.fe.n_flags > 0)].sort_values(["n_flags", "events_12m"], ascending=False).copy()
@@ -634,7 +711,7 @@ def tender():
                              "firm_std": "Firm", "events_12m": "Events, 12 months", "class_I_events_12m": "Class I (high risk)",
                              "prior_events_per_year": st.column_config.NumberColumn("Usual per year", format="%.1f"),
                              "alert_months_12m": "Signal months", "flags": st.column_config.TextColumn("Evidence flags", width="large")})
-    ui.footer(d.source)
+    page_end()
 
 
 # ============================================================ Assistant
@@ -691,7 +768,7 @@ def answer_blocks(text):
 
 def assistant():
     ui.page_header("Ask PharmaSignal AI", ai=True, icon="smart_toy", text=
-                   "Ask in plain English about firms, products, failure types or signals. Answers use only the recall data, "
+                   "Ask about firms, products, failure types or signals. Answers use only the recall data, "
                    "cite recall numbers, and are checked by code before you see them.")
     ui.steps(["Pick an example or type your own question", "Read the colour-coded answer and the recall numbers it cites",
               "Open 'Sources and data used' to check the evidence"])
@@ -773,7 +850,7 @@ def assistant():
         if st.button("Clear conversation", icon=":material/delete:"):
             st.session_state.chat = []
             st.rerun()
-    ui.footer(d.source)
+    page_end()
 
 
 # ============================================================ About
@@ -847,7 +924,7 @@ def how_it_works():
 
     ui.section("Key terms")
     ui.table(["Term", "Meaning"], [[f"<b>{ui.esc(k)}</b>", ui.esc(v)] for k, v in TERMS.items()])
-    ui.footer(d.source)
+    page_end()
 
 
 # ---- feedback storage
@@ -1001,21 +1078,56 @@ def team_feedback():
          "Planned", "amber"),
         ("Collect stakeholder feedback", "Use the form above during and after the presentation.", "Open now", "teal"),
         ("Refresh the data before real use", "Re-run the notebook on a new openFDA snapshot and redeploy.", "Future", "grey")])
-    ui.footer(d.source)
+    page_end()
 
 
 # ============================================================ navigation and sidebar
-home_pg = st.Page(home, title="Home", icon=":material/home:", default=True)
-findings_pg = st.Page(key_findings, title="Recall Snapshot", icon=":material/insights:", url_path="findings")
-failures_pg = st.Page(what_goes_wrong, title="Failure Patterns", icon=":material/science:", url_path="failures")
-firms_pg = st.Page(firms_and_records, title="Firm Directory", icon=":material/factory:", url_path="firms")
-latest_pg = st.Page(latest_signals, title="Signal Radar", icon=":material/radar:", url_path="signals")
-trends_pg = st.Page(signal_trends, title="Trend Explorer", icon=":material/show_chart:", url_path="trends")
-backtest_pg = st.Page(backtest_page, title="Crisis Back-test", icon=":material/history:", url_path="backtest")
-tender_pg = st.Page(tender, title="Tender Screener", icon=":material/fact_check:", url_path="tender")
-ask_pg = st.Page(assistant, title="Ask PharmaSignal AI", icon=":material/smart_toy:", url_path="ask")
-how_pg = st.Page(how_it_works, title="Methods & Evidence", icon=":material/settings:", url_path="how")
-team_pg = st.Page(team_feedback, title="Team & Feedback", icon=":material/groups:", url_path="team")
+CURRENT = {"page": "home"}
+
+
+def routed(fn):
+    """Remembers which page is running, so the previous/next buttons know where they are."""
+    @functools.wraps(fn)
+    def run():
+        CURRENT["page"] = fn.__name__
+        fn()
+    return run
+
+
+home_pg = st.Page(routed(home), title="Home", icon=":material/home:", default=True)
+findings_pg = st.Page(routed(key_findings), title="Recall Snapshot", icon=":material/insights:", url_path="findings")
+failures_pg = st.Page(routed(what_goes_wrong), title="Failure Patterns", icon=":material/science:", url_path="failures")
+firms_pg = st.Page(routed(firms_and_records), title="Firm Directory", icon=":material/factory:", url_path="firms")
+latest_pg = st.Page(routed(latest_signals), title="Signal Radar", icon=":material/radar:", url_path="signals")
+trends_pg = st.Page(routed(signal_trends), title="Trend Explorer", icon=":material/show_chart:", url_path="trends")
+backtest_pg = st.Page(routed(backtest_page), title="Crisis Back-test", icon=":material/history:", url_path="backtest")
+tender_pg = st.Page(routed(tender), title="Tender Screener", icon=":material/fact_check:", url_path="tender")
+ask_pg = st.Page(routed(assistant), title="Ask PharmaSignal AI", icon=":material/smart_toy:", url_path="ask")
+how_pg = st.Page(routed(how_it_works), title="Methods & Evidence", icon=":material/settings:", url_path="how")
+team_pg = st.Page(routed(team_feedback), title="Team & Feedback", icon=":material/groups:", url_path="team")
+
+# The prescribed route: four colour-coded sections, ten steps. Used by the home page and the previous/next buttons.
+STAGES = [("Understand the history", "Steps 1 to 3", [
+              (findings_pg, "The big picture: how many recalls, how serious, and how that changed each year."),
+              (failures_pg, "What goes wrong most often, such as contamination, impurities or failed sterility."),
+              (firms_pg, "Look up any firm's recall record and search individual recall reports.")]),
+          ("Spot the warning signs", "Steps 4 to 6", [
+              (latest_pg, "This month's unusual jumps in recalls, ranked by how many detectors agree."),
+              (trends_pg, "Follow a failure type over the years and test how sensitive the alerts are."),
+              (backtest_pg, "Would the detectors have caught six real recall crises early? See the replay.")]),
+          ("Decide on a supplier", "Steps 7 and 8", [
+              (tender_pg, "Enter your shortlist of suppliers and a product, get a colour-coded recall check and AI-drafted questions for each bidder."),
+              (ask_pg, "Ask a question and get an answer backed by recall numbers.")]),
+          ("Check the evidence", "Steps 9 and 10", [
+              (how_pg, "How the models work, how well they perform, and what they cannot tell you."),
+              (team_pg, "Meet the team and tell us what to improve.")])]
+PAGE_FN = {"findings": "key_findings", "failures": "what_goes_wrong", "firms": "firms_and_records",
+           "signals": "latest_signals", "trends": "signal_trends", "backtest": "backtest_page", "tender": "tender",
+           "ask": "assistant", "how": "how_it_works", "team": "team_feedback"}
+ROUTE = [{"page": p, "fn": PAGE_FN[p.url_path], "note": note, "stage": k, "stage_name": name}
+         for k, (name, _, items) in enumerate(STAGES, 1) for p, note in items]
+HOME_STEP = {"page": home_pg, "note": "The starting point: what PharmaSignal does and the route through it.",
+             "stage": 1, "stage_name": "Start"}
 pg = st.navigation({"Start": [home_pg],
                     "Recall Insights": [findings_pg, failures_pg, firms_pg],
                     "Early Warning": [latest_pg, trends_pg, backtest_pg],
