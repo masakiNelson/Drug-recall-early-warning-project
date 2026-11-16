@@ -332,6 +332,24 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .st-key-journey {{ border: 1px solid {p['LINE']}; border-radius: 18px; padding: 22px 22px 4px 22px; background: {p['CARD']}; }}
 .st-key-journey [data-testid="stPageLink"] a {{ height: 66px; min-height: 66px !important; align-items: center !important; }}
 .ps-stage {{ min-height: 3.3em; }}
+
+/* ---- the question box on Ask PharmaSignal AI: easy to find and obviously typeable */
+[data-testid="stBottom"] > div {{ padding-top: 6px; }}
+[data-testid="stBottomBlockContainer"]::before {{ content: "Type your own question"; display: block; font-weight: 700;
+  font-size: 0.92rem; color: {p['TEAL_TEXT']}; margin: 0 0 6px 4px; }}
+[data-testid="stChatInput"] {{ border: 2px solid {p['TEAL']} !important; background: {p['CARD']} !important;
+  border-radius: 14px !important; box-shadow: 0 6px 22px rgba(15,118,110,0.18) !important; }}
+[data-testid="stChatInput"]:focus-within {{ box-shadow: 0 0 0 4px {p['TEAL_SOFT']}, 0 6px 22px rgba(15,118,110,0.22) !important; }}
+[data-testid="stChatInput"] > div, [data-testid="stChatInput"] div:has(> textarea) {{ background: {p['CARD']} !important; }}
+[data-testid="stChatInput"] textarea {{ font-size: 1.02rem !important; color: {p['INK']} !important; min-height: 48px;
+  background: {p['CARD']} !important; }}
+[data-testid="stChatInput"] textarea::placeholder {{ color: {p['MUTED']} !important; opacity: 1; }}
+[data-testid="stChatInputSubmitButton"] {{ background: {p['TEAL']} !important; color: #FFFFFF !important;
+  border-radius: 10px !important; opacity: 1 !important; }}
+[data-testid="stChatInputSubmitButton"] svg {{ fill: #FFFFFF !important; color: #FFFFFF !important; }}
+[data-testid="stChatInputSubmitButton"]:disabled {{ background: {p['TEAL']} !important; opacity: 0.55 !important; }}
+.ps-typehint {{ display: flex; align-items: center; gap: 8px; margin: 14px 0 4px 0; padding: 10px 14px; border-radius: 10px;
+  background: {p['TEAL_SOFT']}; color: {p['TEAL_TEXT']}; font-weight: 600; font-size: 0.93rem; }}
 .st-key-journey [data-testid="stPageLink"] a > span:last-child *,
 .st-key-psnav [data-testid="stPageLink"] a * {{ word-break: normal !important; overflow-wrap: normal !important; hyphens: manual; }}
 .ps-stage .dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }}

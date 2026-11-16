@@ -770,7 +770,8 @@ def assistant():
     ui.page_header("Ask PharmaSignal AI", ai=True, icon="smart_toy", text=
                    "Ask about firms, products, failure types or signals. Answers use only the recall data, "
                    "cite recall numbers, and are checked by code before you see them.")
-    ui.steps(["Pick an example or type your own question", "Read the colour-coded answer and the recall numbers it cites",
+    ui.steps(["Pick an example, or type your own question in the box at the bottom of the screen",
+              "Read the colour-coded answer and the recall numbers it cites",
               "Open 'Sources and data used' to check the evidence"])
     allowed = llm is not None and llm_allowed()
     if llm is None:
@@ -791,7 +792,10 @@ def assistant():
         with cols[i % 2]:
             if st.button(ui.with_risk(q), width="stretch", key=f"askq_{i}", icon=":material/chat_bubble:"):
                 clicked = q
-    question = st.chat_input("Ask about recalls, firms, products or signals...") or clicked
+    st.markdown('<div class="ps-typehint">' + ui.icon("keyboard") +
+                'Or type your own question in the box at the bottom of the screen and press Enter.</div>',
+                unsafe_allow_html=True)
+    question = st.chat_input("Type your question here, e.g. Has Teva had any Class I recalls?") or clicked
 
     if question:
         use_llm = llm if allowed else None
