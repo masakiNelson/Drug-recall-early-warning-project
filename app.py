@@ -1116,7 +1116,7 @@ STAGES = [("Understand the history", "Steps 1 to 3", [
               (trends_pg, "Follow a failure type over the years and test how sensitive the alerts are."),
               (backtest_pg, "Would the detectors have caught six real recall crises early? See the replay.")]),
           ("Decide on a supplier", "Steps 7 and 8", [
-              (tender_pg, "Enter your shortlist of suppliers and a product, get a colour-coded recall check and AI-drafted questions for each bidder."),
+              (tender_pg, "Screen a supplier shortlist for one product, with AI-drafted questions for each bidder."),
               (ask_pg, "Ask a question and get an answer backed by recall numbers.")]),
           ("Check the evidence", "Steps 9 and 10", [
               (how_pg, "How the models work, how well they perform, and what they cannot tell you."),

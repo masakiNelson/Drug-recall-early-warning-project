@@ -328,7 +328,10 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
   width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; color: {p['TEAL_TEXT']}; font-weight: 800;
   font-size: 0.95rem; margin-right: 10px; }}
 .st-key-journey [data-testid="stPageLink"] a::after {{ color: #FFFFFF !important; margin-left: auto !important; padding-left: 8px; }}
-.ps-stepnote {{ color: {p['TEXT']}; font-size: 0.9rem; line-height: 1.45; margin: 6px 2px 16px 2px; }}
+.ps-stepnote {{ color: {p['TEXT']}; font-size: 0.9rem; line-height: 1.45; margin: 8px 2px 18px 2px; min-height: 4.4em; }}
+.st-key-journey {{ border: 1px solid {p['LINE']}; border-radius: 18px; padding: 22px 22px 4px 22px; background: {p['CARD']}; }}
+.st-key-journey [data-testid="stPageLink"] a {{ height: 66px; min-height: 66px !important; align-items: center !important; }}
+.ps-stage {{ min-height: 3.3em; }}
 .st-key-journey [data-testid="stPageLink"] a > span:last-child *,
 .st-key-psnav [data-testid="stPageLink"] a * {{ word-break: normal !important; overflow-wrap: normal !important; hyphens: manual; }}
 .ps-stage .dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }}
@@ -339,8 +342,8 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
   padding: 10px 16px !important; min-height: 52px; transition: transform .12s ease; }}
 .st-key-psnav [data-testid="stPageLink"] a:hover {{ transform: translateY(-1px); }}
 .st-key-psnav [data-testid="stPageLink"] a p,
-.st-key-psnav [data-testid="stPageLink"] a span {{ color: #FFFFFF !important; font-weight: 650; }}
-.stMain .st-key-psnav [data-testid="stPageLink"] a span[data-testid="stIconMaterial"] {{ color: #FFFFFF !important; font-size: 1.25rem; }}
+.st-key-psnav [data-testid="stPageLink"] a span {{ font-weight: 650; }}
+.stMain .st-key-psnav [data-testid="stPageLink"] a span[data-testid="stIconMaterial"] {{ font-size: 1.25rem; }}
 .stMain .st-key-psnav [data-testid="stPageLink"] a::after {{ content: none !important; }}
 .st-key-psnav_next {{ align-items: flex-end !important; }}
 .st-key-psnav_prev {{ align-items: flex-start !important; }}
@@ -527,25 +530,31 @@ def who_strip(cards):
 
 # One colour per section of the route, used on the home page and on the previous/next buttons of every page.
 # (main colour, darker shade for hover and shadow); white text passes WCAG AA on each.
-STAGE_COLOURS = {1: ("#0F766E", "#0B5E57"),   # Understand the history - teal
-                 2: ("#A85A00", "#844600"),   # Spot the warning signs - amber
-                 3: ("#1F5F99", "#174A78"),   # Decide on a supplier - blue
-                 4: ("#5B4B8A", "#46396E")}   # Check the evidence - violet
+# (main colour for the number badge and border, dark text colour, light tint, slightly deeper tint for hover).
+# Dark text on the light tints passes WCAG AA.
+STAGE_COLOURS = {1: ("#0F766E", "#0B4F49", "#E4F4F0", "#CDEAE3"),   # Understand the history - teal
+                 2: ("#B86A0A", "#6E3D00", "#FDF1E0", "#F8E0BD"),   # Spot the warning signs - amber
+                 3: ("#2B6CB0", "#173F6B", "#E6EFF9", "#CFE0F3"),   # Decide on a supplier - blue
+                 4: ("#6B5BA6", "#3E3270", "#EEEAF7", "#DDD5F0")}   # Check the evidence - violet
 
 
 def _link_colour(selector, stage):
-    main, dark = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])
-    return (f'{selector} [data-testid="stPageLink"] a {{ background: {main} !important; border-color: {main} !important;'
-            f' box-shadow: 0 2px 0 {dark}, 0 6px 14px rgba(11,34,57,0.16) !important; }}'
-            f'{selector} [data-testid="stPageLink"] a:hover {{ background: {dark} !important; }}'
-            f'{selector} [data-testid="stPageLink"] a::before {{ color: {main} !important; }}')
+    main, dark, tint, deeper = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])
+    link = f'.stMain {selector} [data-testid="stPageLink"] a'
+    return (f'{link} {{ background: {tint} !important; border: 1.5px solid {main} !important;'
+            f' box-shadow: 0 1px 2px rgba(11,34,57,0.05), 0 4px 12px rgba(11,34,57,0.06) !important; }}'
+            f'{link}:hover {{ background: {deeper} !important; }}'
+            f'{link} p, {link} span, {link}:hover p, {link}:hover span {{ color: {dark} !important; }}'
+            f'{link} span[data-testid="stIconMaterial"] {{ color: {dark} !important; }}'
+            f'{link}::before {{ background: {main} !important; color: #FFFFFF !important; }}'
+            f'{link}::after {{ color: {dark} !important; }}')
 
 
 def journey_css(steps):
     """steps: list of (number, stage). Number badges and section colours for the route buttons on the home page."""
     css = "".join(f'.st-key-jstep_{i} [data-testid="stPageLink"] a::before {{ content: "{i}"; }}' + _link_colour(f".st-key-jstep_{i}", s)
                   for i, s in steps)
-    css += "".join(f".ps-stage.s{k} {{ border-bottom-color: {c[0]}; }} .ps-stage.s{k} .dot {{ background: {c[0]}; }}"
+    css += "".join(f".ps-stage.s{k} {{ border-bottom-color: {c[0]}; color: {c[1]}; }} .ps-stage.s{k} .dot {{ background: {c[0]}; }}"
                    for k, c in STAGE_COLOURS.items())
     return "<style>" + css + "</style>"
 
@@ -566,7 +575,7 @@ def route_nav_css(prev_stage, next_stage):
 
 
 def route_position(step, total, stage_name, stage):
-    main = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])[0]
+    main = STAGE_COLOURS.get(stage, STAGE_COLOURS[1])[0]  # badge colour
     _html(f'<div class="ps-navpos"><span class="dot" style="background:{main}"></span>Step {step} of {total}'
           f'<small>{esc(stage_name)}</small></div>')
 
