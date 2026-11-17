@@ -1154,5 +1154,9 @@ Newer recalls are not included<br>
 {d.provenance['records']:,} records, {d.provenance['events']:,} recall events</p>
 <p><b>AI assistant</b><br><span class="dot" style="background:{ui.P['GREEN'] if ai_on else ui.AMBER}"></span>
 {'Claude connected' if ai_on else 'Evidence only (no API key)'}</p>
-<p><b>Capstone group project</b></p></div>""", unsafe_allow_html=True)
+<div class="ps-sideabout">
+<p><b>Programme</b><br>Moringa School, Data Science</p>
+<p><b>Project</b><br>Data Science Capstone Project</p>
+<p><b>Technology</b><br>Python | pandas | scikit-learn | SQLite | Claude API | Streamlit | Altair | Plotly | Tableau</p>
+</div></div>""", unsafe_allow_html=True)
 

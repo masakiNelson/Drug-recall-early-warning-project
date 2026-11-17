@@ -286,6 +286,8 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 [data-testid="stSidebar"] .ps-side .role {{ color: #93AEC4; font-size: 0.8rem; }}
 [data-testid="stSidebar"] .ps-sidehead {{ color: #FFFFFF; font-weight: 700; font-size: 0.95rem; margin: 6px 0 2px 0; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{ color: #DCE6EF !important; }}
+[data-testid="stSidebar"] .ps-sideabout {{ border-top: 1px solid rgba(255,255,255,0.14); margin-top: 14px; padding-top: 12px; }}
+[data-testid="stSidebar"] .ps-sideabout p {{ margin-bottom: 0.7rem; }}
 [data-testid="stSidebar"] .ps-side .dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }}
 .ps-kpi, .ps-who > div, .ps-aiband, .ps-steps > div, .ps-classes > div, .ps-bid, .ps-sig, .ps-ev, .ps-team > div,
 .ps-eval, .stMain [data-testid="stPageLink"] a {{ box-shadow: 0 1px 2px rgba(11,34,57,0.04), 0 4px 14px rgba(11,34,57,0.05); }}
