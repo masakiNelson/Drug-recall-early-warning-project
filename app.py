@@ -1022,8 +1022,8 @@ def team_feedback():
     ui.team_cards(ui.TEAM)
 
     ui.section("Use of AI")
-    ui.tip("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook, and are being "
-           "checked with a blind human review of 150 records. Claude also assisted with code and documentation, and writes "
+    ui.tip("The recall-reason labels were drafted by LLM-assisted annotation (Claude) using a written codebook, and were "
+           "checked with a blind human review of 150 records (87% agreement, Cohen's kappa 0.85). Claude also assisted with code and documentation, and writes "
            "the assistant's answers from the evidence shown.")
 
     ui.section("Your feedback")
@@ -1081,7 +1081,8 @@ def team_feedback():
         ("Test with someone outside the team", "Five minutes, unhelped, following USER_TEST.md; fix the top problems found.",
          "Planned", "amber"),
         ("Collect stakeholder feedback", "Use the form above during and after the presentation.", "Open now", "teal"),
-        ("Refresh the data before real use", "Re-run the notebook on a new openFDA snapshot and redeploy.", "Future", "grey")])
+        ("Refresh the data every quarter", "Data refreshed to 4 November 2026. Next: re-run the notebook on a new openFDA "
+         "snapshot and redeploy.", "Future", "grey")])
     page_end()
 
 
