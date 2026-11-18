@@ -247,7 +247,8 @@ def key_findings():
     per_year = EVENTS[EVENTS.classification.isin(ALL_CLASSES)].groupby(["year", "classification"]).size().reset_index(name="events")
     per_year["classification"] = per_year.classification.map(ui.with_risk)
     st.subheader("Recall events per year, by recall class")
-    ui.chart(alt.Chart(per_year).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
+    with ui.wide("years"):
+      ui.chart(alt.Chart(per_year).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("events:Q", title="Recall events"),
         color=alt.Color("classification:N", title=None, scale=ui.CLASS_COLOURS),
@@ -388,7 +389,8 @@ def latest_signals():
                                      hovertemplate="%{y}<br>This month: %{x} events<extra></extra>"))
     fig.update_xaxes(title_text="Recall events in the month", rangemode="tozero")
     fig.update_yaxes(title_text="", tickfont=dict(size=12.5, color=ui.P["TEXT"]))
-    ui.plotly_chart(fig, max(320, 34 * len(show) + 110))
+    with ui.wide("jumps"):
+        ui.plotly_chart(fig, max(320, 34 * len(show) + 110))
 
     # ---- compact table
     ui.section("Signals at a glance", "Newest first. Open the full list below to sort, search or download.")
@@ -442,7 +444,8 @@ def signal_trends():
         colorbar=dict(title=dict(text="Events", side="top"), thickness=12, outlinewidth=0)))
     fig.update_xaxes(side="top", showgrid=False, tickfont=dict(size=12))
     fig.update_yaxes(showgrid=False, tickfont=dict(size=12.5, color=ui.P["TEXT"]))
-    ui.plotly_chart(fig, 38 * len(heat) + 110)
+    with ui.wide("heat"):
+        ui.plotly_chart(fig, 38 * len(heat) + 110)
     peak = heat.stack().idxmax()
     ui.tip(f"<b>Biggest single cell:</b> {ui.esc(peak[0].lower())} in {peak[1]}, with {int(heat.stack().max())} recall events.")
 
@@ -911,7 +914,7 @@ def how_it_works():
         ("smart_toy", "AI assistant", "Database facts and the closest recall records go to Claude; a code checker verifies every "
                               "number and recall ID.", "green")])
 
-    ui.section("How well it works", "Results from the analysis notebook, measured against the targets set in the proposal.")
+    ui.section("How well it works", "How each part of PharmaSignal performed against the goals we set at the start of the project.")
     if len(d.evaluation):
         ev = evaluation_view(d.evaluation)
         rows = [[f"<b>{ui.esc(r.component)}</b>", ui.esc(r.target), ui.esc(r.achieved),
@@ -1074,15 +1077,6 @@ def team_feedback():
             elif typed:
                 st.error("That password is not right.")
 
-    ui.section("Action points", "What the team is doing next, and where your input fits in.")
-    ui.actions([
-        ("Blind label check", "150 records labelled independently by the team: 87% agreement with the AI labels, "
-         "Cohen's kappa 0.85 (almost perfect agreement).", "Done", "teal"),
-        ("Test with someone outside the team", "Five minutes, unhelped, following USER_TEST.md; fix the top problems found.",
-         "Planned", "amber"),
-        ("Collect stakeholder feedback", "Use the form above during and after the presentation.", "Open now", "teal"),
-        ("Refresh the data every quarter", "Data refreshed to 4 November 2026. Next: re-run the notebook on a new openFDA "
-         "snapshot and redeploy.", "Future", "grey")])
     page_end()
 
 

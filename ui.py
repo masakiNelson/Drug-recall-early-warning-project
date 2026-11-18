@@ -3,6 +3,7 @@
 Two matching palettes (light and dark), one chart theme and a small set of building blocks (hero, findings, steps,
 KPI tiles, status chips, cards, callouts) so every page looks and reads the same way in either mode.
 """
+import contextlib
 import html
 import re
 
@@ -268,7 +269,18 @@ html, body, [class*="css"], .stMarkdown, button, input, textarea, select {{
 .ps-eval td.c {{ color: {p['INK']}; font-weight: 600; white-space: nowrap; }}
 .ps-eval td.n {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}
 .ps-plot-gap {{ height: 2px; }}
-[data-testid="stHeader"] {{ background: transparent !important; }}
+[data-testid="stHeader"] {{ background: {p['BG']} !important; }}
+/* phones: wide charts scroll sideways inside their own box instead of being squashed */
+@media (max-width: 760px) {{
+  div[class*="st-key-pswide"] {{ overflow-x: auto !important; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }}
+  div[class*="st-key-pswide"] > div {{ min-width: 680px; }}
+  div[class*="st-key-pswide"] [data-testid="stPlotlyChart"], div[class*="st-key-pswide"] [data-testid="stVegaLiteChart"] {{ min-width: 680px; }}
+  .ps-swipe {{ display: block !important; }}
+  [data-testid="stMain"] [data-testid="stMarkdownContainer"] table {{ display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }}
+  [data-testid="stMain"] [data-testid="stMarkdownContainer"] table > thead, [data-testid="stMain"] [data-testid="stMarkdownContainer"] table > tbody {{ display: table; width: 100%; min-width: 620px; }}
+  .block-container, [data-testid="stMainBlockContainer"] {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
+}}
+.ps-swipe {{ display: none; color: {p['MUTED']}; font-size: .85rem; margin: 0 0 4px; }}
 
 /* sidebar: styled here as well as in config.toml, so it stays readable even if the theme file is not loaded */
 [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {{ background-color: {p['SIDEBAR']} !important; }}
@@ -711,9 +723,21 @@ def plotly_chart(fig, height=380):
     for ax in (fig.update_xaxes, fig.update_yaxes):
         ax(automargin=True, gridcolor=P["GRID"], zeroline=False, linecolor=P["MIST"], tickfont=dict(color=P["MUTED"]),
            title_font=dict(color=P["MUTED"]))
+    # static: no dragging, zooming or panning; hover tips and the full-screen button still work
+    fig.update_layout(dragmode=False)
+    fig.update_xaxes(fixedrange=True); fig.update_yaxes(fixedrange=True)
     _html('<div class="ps-plot-gap"></div>')
     st.plotly_chart(fig, width="stretch", theme=None,
-                    config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"]})
+                    config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "showTips": False,
+                            "displaylogo": False, "staticPlot": False})
+
+
+@contextlib.contextmanager
+def wide(key):
+    """Wraps a wide chart: on phones it scrolls sideways in its own box instead of being squashed."""
+    with st.container(key="pswide_" + key):
+        _html('<div class="ps-swipe">Swipe sideways to see the whole chart.</div>')
+        yield
 
 
 def signal_table(rows):
